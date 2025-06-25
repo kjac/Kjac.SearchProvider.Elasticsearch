@@ -17,11 +17,11 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal sealed class ElasticIndexer : ElasticServiceBase, IElasticIndexer
 {
-    private readonly ElasticClientFactory _clientFactory;
+    private readonly IElasticClientFactory _clientFactory;
     private readonly IServerRoleAccessor _serverRoleAccessor;
     private readonly ILogger<ElasticIndexer> _logger;
 
-    public ElasticIndexer(ElasticClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticIndexer> logger)
+    public ElasticIndexer(IElasticClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticIndexer> logger)
     {
         _clientFactory = clientFactory;
         _serverRoleAccessor = serverRoleAccessor;

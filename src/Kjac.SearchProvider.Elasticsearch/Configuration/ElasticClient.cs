@@ -2,7 +2,7 @@
 
 public class ElasticClient
 {
-    // TODO: configure host options here
+    public Uri? Host { get; set; }
     
     public Authentication? Authentication { get; set; }
 

@@ -8,7 +8,7 @@ public class ElasticIndexerTests : ElasticTestBase
     public async Task CanCreateAndResetIndex()
     {
         var indexer = GetRequiredService<IElasticIndexer>();
-        var client = GetRequiredService<ElasticClientFactory>().GetClient();
+        var client = GetRequiredService<IElasticClientFactory>().GetClient();
 
         const string indexAlias = "someindex";
 

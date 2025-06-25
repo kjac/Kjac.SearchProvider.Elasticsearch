@@ -8,7 +8,7 @@ namespace Kjac.SearchProvider.Elasticsearch.Tests;
 [TestFixture]
 public abstract class ElasticTestBase
 {
-    protected ServiceProvider ServiceProvider { get; private set; }
+    private ServiceProvider _serviceProvider;
 
     [OneTimeSetUp]
     public async Task SetUp()
@@ -20,13 +20,12 @@ public abstract class ElasticTestBase
 
         serviceCollection.Configure<ElasticClient>(options =>
         {
+            options.Host = new Uri("http://localhost:9200");
+            
             options.Authentication = new()
             {
-                Basic = new()
-                {
-                    Username = "elastic",
-                    Password = "o7WGEZFC"
-                }
+                Username = "elastic",
+                Password = "o7WGEZFC"
             };
 
             options.MaxFacetValues = 500;
@@ -34,7 +33,7 @@ public abstract class ElasticTestBase
 
         serviceCollection.AddSingleton<IServerRoleAccessor, SingleServerRoleAccessor>();
 
-        ServiceProvider = serviceCollection.BuildServiceProvider();
+        _serviceProvider = serviceCollection.BuildServiceProvider();
 
         await PerformOneTimeSetUpAsync();
     }
@@ -44,7 +43,7 @@ public abstract class ElasticTestBase
     {
         await PerformOneTimeTearDownAsync();
 
-        if (ServiceProvider is IDisposable disposableServiceProvider)
+        if (_serviceProvider is IDisposable disposableServiceProvider)
         {
             disposableServiceProvider.Dispose();
         }
@@ -57,5 +56,5 @@ public abstract class ElasticTestBase
         => Task.CompletedTask;
 
     protected T GetRequiredService<T>() where T : notnull
-        => ServiceProvider.GetRequiredService<T>();
+        => _serviceProvider.GetRequiredService<T>();
 }

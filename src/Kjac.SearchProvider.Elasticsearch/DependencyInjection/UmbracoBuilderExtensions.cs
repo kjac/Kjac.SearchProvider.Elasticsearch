@@ -3,7 +3,6 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Search.Core.Configuration;
-using Umbraco.Cms.Search.Core.Services;
 using Umbraco.Cms.Search.Core.Services.ContentIndexing;
 using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.NotificationHandlers;

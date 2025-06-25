@@ -21,11 +21,11 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
 {
-    private readonly ElasticClientFactory _clientFactory;
+    private readonly IElasticClientFactory _clientFactory;
     private readonly ILogger<ElasticSearcher> _logger;
     private readonly int _maxFacetValues;
 
-    public ElasticSearcher(ElasticClientFactory clientFactory, IOptions<ElasticClient> options, ILogger<ElasticSearcher> logger)
+    public ElasticSearcher(IElasticClientFactory clientFactory, IOptions<ElasticClient> options, ILogger<ElasticSearcher> logger)
     {
         _clientFactory = clientFactory;
         _maxFacetValues = options.Value.MaxFacetValues;
