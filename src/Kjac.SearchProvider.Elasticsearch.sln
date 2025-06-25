@@ -5,6 +5,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kjac.SearchProvider.Elasticsearch.Site", "Kjac.SearchProvider.Elasticsearch.Site\Kjac.SearchProvider.Elasticsearch.Site.csproj", "{0E689D8F-57EC-4F2D-AC34-808A1E6C740F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kjac.SearchProvider.Elasticsearch", "Kjac.SearchProvider.Elasticsearch\Kjac.SearchProvider.Elasticsearch.csproj", "{404DD853-E098-4398-95A1-1538D42D7389}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kjac.SearchProvider.Elasticsearch.Tests", "Kjac.SearchProvider.Elasticsearch.Tests\Kjac.SearchProvider.Elasticsearch.Tests.csproj", "{114F7ADB-AC54-453F-A96A-743E6200302F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{0E689D8F-57EC-4F2D-AC34-808A1E6C740F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E689D8F-57EC-4F2D-AC34-808A1E6C740F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E689D8F-57EC-4F2D-AC34-808A1E6C740F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{404DD853-E098-4398-95A1-1538D42D7389}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{404DD853-E098-4398-95A1-1538D42D7389}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{404DD853-E098-4398-95A1-1538D42D7389}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{404DD853-E098-4398-95A1-1538D42D7389}.Release|Any CPU.Build.0 = Release|Any CPU
+		{114F7ADB-AC54-453F-A96A-743E6200302F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{114F7ADB-AC54-453F-A96A-743E6200302F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{114F7ADB-AC54-453F-A96A-743E6200302F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{114F7ADB-AC54-453F-A96A-743E6200302F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
