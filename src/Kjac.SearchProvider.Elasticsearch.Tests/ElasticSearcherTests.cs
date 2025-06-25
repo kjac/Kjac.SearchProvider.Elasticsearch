@@ -1,6 +1,4 @@
-﻿using Kjac.SearchProvider.Elasticsearch.Configuration;
-using Kjac.SearchProvider.Elasticsearch.DependencyInjection;
-using Kjac.SearchProvider.Elasticsearch.Extensions;
+﻿using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Kjac.SearchProvider.Elasticsearch.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,40 +12,17 @@ using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-partial class ElasticSearcherTests
+partial class ElasticSearcherTests : ElasticTestBase
 {
     private const string IndexAlias = "testindex";
     private const string FieldMultipleValues = "FieldOne";
     private const string FieldSingleValue = "FieldTwo";
     private const string FieldMultiSorting = "FieldThree";
     
-    private IServiceProvider _serviceProvider;
     private readonly Dictionary<int, Guid> _documentIds = [];
     
-    [OneTimeSetUp]
-    public async Task Setup()
+    protected override async Task PerformOneTimeSetUpAsync()
     {
-        var serviceCollection = new ServiceCollection();
-        serviceCollection
-            .AddElastic()
-            .AddLogging();
-
-        serviceCollection.Configure<ElasticClient>(options =>
-        {
-            options.Authentication = new()
-            {
-                Basic = new()
-                {
-                    Username = "elastic",
-                    Password = "o7WGEZFC"
-                }
-            };
-
-            options.MaxFacetValues = 500;
-        });
-
-        _serviceProvider = serviceCollection.BuildServiceProvider();
-
         await EnsureIndex();
 
         var indexer = GetRequiredService<IElasticIndexer>();
@@ -180,16 +155,8 @@ partial class ElasticSearcherTests
         Thread.Sleep(1000);
     }
 
-    [OneTimeTearDown]
-    public async Task TearDown()
-    {
-        await DeleteIndex();
-        
-        if (_serviceProvider is IDisposable disposableServiceProvider)
-        {
-            disposableServiceProvider.Dispose();
-        }
-    }
+    protected override async Task PerformOneTimeTearDownAsync()
+        => await DeleteIndex();
 
     private async Task<SearchResult> SearchAsync(
         string? query = null,
@@ -212,25 +179,20 @@ partial class ElasticSearcherTests
     private async Task EnsureIndex()
     {
         await DeleteIndex();
-        
-        var client = GetRequiredService<ElasticClientFactory>().GetClient();
-        var result = await client.EnsureIndexAsync(IndexAlias, GetRequiredService<ILogger<ElasticSearcherTests>>(), CancellationToken.None);
-        Assert.That(result, Is.True);
+
+        await GetRequiredService<IElasticIndexer>().EnsureAsync(IndexAlias);
     }
 
     private async Task DeleteIndex()
     {
-        var client = GetRequiredService<ElasticClientFactory>().GetClient();
-        await client.Indices.DeleteAsync(IndexAlias);
+        await GetRequiredService<IElasticIndexer>().ResetAsync(IndexAlias);
     }
-
-    private T GetRequiredService<T>() where T : notnull => _serviceProvider.GetRequiredService<T>();
 
     private DateTimeOffset StartDate()
         => Date(2025, 01, 01);
 
     private DateTimeOffset Date(int year, int month, int day, int hour = 0, int minute = 0, int second = 0)
-        => new (year, month, day, 0, 0, 0, TimeSpan.Zero);
+        => new (year, month, day, hour, minute, second, TimeSpan.Zero);
 
     private int[] OddOrEvenIds(bool even)
         => Enumerable
@@ -238,5 +200,4 @@ partial class ElasticSearcherTests
             .Select(i => i * 2)
             .Select(i => even ? i : i - 1)
             .ToArray();
-
 }

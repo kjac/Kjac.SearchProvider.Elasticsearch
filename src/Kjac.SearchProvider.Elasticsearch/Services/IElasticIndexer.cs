@@ -5,4 +5,5 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 // public marker interface allowing for explicit index registrations using the Elastic indexer 
 public interface IElasticIndexer : IIndexer
 {
+    Task EnsureAsync(string indexAlias);
 }

@@ -1,31 +1,40 @@
 ﻿using System.Text.Json.Serialization;
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.Mapping;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Search.Core.Models.Indexing;
 using Kjac.SearchProvider.Elasticsearch.Constants;
 using Kjac.SearchProvider.Elasticsearch.Extensions;
+using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Extensions;
+using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
+using IProperty = Elastic.Clients.Elasticsearch.Mapping.IProperty;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
-
-// TODO: this service should never execute anything on Subscriber instances
 
 internal sealed class ElasticIndexer : ElasticServiceBase, IElasticIndexer
 {
     private readonly ElasticClientFactory _clientFactory;
+    private readonly IServerRoleAccessor _serverRoleAccessor;
     private readonly ILogger<ElasticIndexer> _logger;
 
-    public ElasticIndexer(ElasticClientFactory clientFactory, ILogger<ElasticIndexer> logger)
+    public ElasticIndexer(ElasticClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticIndexer> logger)
     {
         _clientFactory = clientFactory;
+        _serverRoleAccessor = serverRoleAccessor;
         _logger = logger;
     }
 
     public async Task AddOrUpdateAsync(string indexAlias, Guid id, UmbracoObjectTypes objectType, IEnumerable<Variation> variations, IEnumerable<IndexField> fields, ContentProtection? protection)
     {
+        if (IsUnsupportedServerRole())
+        {
+            return;
+        }
+
         var fieldsByFieldName = fields.GroupBy(field => field.FieldName);
         var documents = variations.Select(variation =>
         {
@@ -91,6 +100,11 @@ internal sealed class ElasticIndexer : ElasticServiceBase, IElasticIndexer
 
     public async Task DeleteAsync(string indexAlias, IEnumerable<Guid> ids)
     {
+        if (IsUnsupportedServerRole())
+        {
+            return;
+        }
+
         var client = _clientFactory.GetClient();
         var result = await client.DeleteByQueryAsync<IndexDocument>(dr => dr
             .Indices(indexAlias.ValidIndexAlias())
@@ -107,12 +121,87 @@ internal sealed class ElasticIndexer : ElasticServiceBase, IElasticIndexer
         }
     }
 
-    public Task ResetAsync(string indexAlias)
+    public async Task ResetAsync(string indexAlias)
     {
-        // TODO: implement
-        return Task.CompletedTask;
+        if (IsUnsupportedServerRole())
+        {
+            return;
+        }
+
+        var client = _clientFactory.GetClient();
+        var existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        if (existsResponse.Exists is false)
+        {
+            return;
+        }
+
+        var result = await client.Indices.DeleteAsync(indexAlias);
+
+        if (result.IsValidResponse is false)
+        {
+            LogFailedElasticResponse(_logger, indexAlias, "Could not reset the index", result);
+        }
     }
 
+    public async Task EnsureAsync(string indexAlias)
+    {
+        if (IsUnsupportedServerRole())
+        {
+            return;
+        }
+
+        indexAlias = indexAlias.ValidIndexAlias();
+
+        var client = _clientFactory.GetClient();
+        
+        var existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        if (existsResponse.Exists)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Creating index {indexAlias}...", indexAlias);
+        var createResponse = await client.Indices.CreateAsync(
+            indexAlias,
+            cd => cd
+                .Mappings(md => md
+                    .Properties(
+                        new Properties(new Dictionary<PropertyName, IProperty>
+                            {
+                                { IndexConstants.FieldNames.Key, new KeywordProperty() },
+                                { IndexConstants.FieldNames.ObjectType, new KeywordProperty() },
+                                { IndexConstants.FieldNames.Culture, new KeywordProperty() },
+                                { IndexConstants.FieldNames.Segment, new KeywordProperty() },
+                                { IndexConstants.FieldNames.AccessKeys, new KeywordProperty() },
+                            }
+                        ))
+                    .DynamicTemplates([
+                            new KeyValuePair<string, DynamicTemplate>(
+                                "keyword_fields_as_keywords",
+                                new DynamicTemplate
+                                {
+                                    Mapping = new KeywordProperty(),
+                                    MatchMappingType = ["string"],
+                                    Match = ["*_keywords"]
+                                }
+                            )
+                        ]
+                    )
+                )
+        );
+
+        if (createResponse.Acknowledged)
+        {
+            _logger.LogInformation("Index {indexAlias} has been created.", indexAlias);
+        }
+        else
+        {
+            _logger.LogError("Index {indexAlias} could not be created. Debug info from Elastic: {debugInformation}", indexAlias, createResponse.DebugInformation);
+        }
+    }
+    
+    private bool IsUnsupportedServerRole() => _serverRoleAccessor.CurrentServerRole is ServerRole.Subscriber;
+    
     private record IndexDocument
     {
         [JsonPropertyName(IndexConstants.FieldNames.Id)]

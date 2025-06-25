@@ -1,14 +1,8 @@
-﻿using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.Mapping;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
-using Umbraco.Cms.Search.Core.Models.Configuration;
 using Umbraco.Cms.Search.Core.Services;
-using Kjac.SearchProvider.Elasticsearch.Constants;
-using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Kjac.SearchProvider.Elasticsearch.Services;
 using IndexOptions = Umbraco.Cms.Search.Core.Configuration.IndexOptions;
 
@@ -16,21 +10,18 @@ namespace Kjac.SearchProvider.Elasticsearch.NotificationHandlers;
 
 internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandler<UmbracoApplicationStartingNotification>
 {
-    private readonly ElasticClientFactory _clientFactory;
+    private readonly IElasticIndexer _elasticIndexer;
     private readonly IServiceProvider _serviceProvider;
     private readonly IndexOptions _indexOptions;
-    private readonly ILogger<EnsureIndexesNotificationHandler> _logger;
 
     public EnsureIndexesNotificationHandler(
-        ElasticClientFactory clientFactory,
+        IElasticIndexer elasticIndexer,
         IServiceProvider serviceProvider,
-        IOptions<IndexOptions> indexOptions,
-        ILogger<EnsureIndexesNotificationHandler> logger)
+        IOptions<IndexOptions> indexOptions)
     {
-        _clientFactory = clientFactory;
         _serviceProvider = serviceProvider;
         _indexOptions = indexOptions.Value;
-        _logger = logger;
+        _elasticIndexer = elasticIndexer;
     }
 
     public async Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
@@ -46,15 +37,8 @@ internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandl
 
             if (shouldEnsureIndex)
             {
-                await EnsureIndex(indexRegistration, cancellationToken);
+                await _elasticIndexer.EnsureAsync(indexRegistration.IndexAlias);
             }
         }
-    }
-
-    private async Task EnsureIndex(IndexRegistration indexRegistration, CancellationToken cancellationToken)
-    {
-        var client = _clientFactory.GetClient();
-
-        await client.EnsureIndexAsync(indexRegistration.IndexAlias, _logger, cancellationToken);
     }
 }
