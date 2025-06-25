@@ -2,13 +2,13 @@
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-public class ElasticIndexerTests : ElasticTestBase
+public class ElasticsearchIndexerTests : ElasticsearchTestBase
 {
     [Test]
     public async Task CanCreateAndResetIndex()
     {
-        var indexer = GetRequiredService<IElasticIndexer>();
-        var client = GetRequiredService<IElasticClientFactory>().GetClient();
+        var indexer = GetRequiredService<IElasticsearchIndexer>();
+        var client = GetRequiredService<IElasticsearchClientFactory>().GetClient();
 
         const string indexAlias = "someindex";
 

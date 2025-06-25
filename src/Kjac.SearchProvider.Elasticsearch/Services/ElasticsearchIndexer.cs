@@ -15,13 +15,13 @@ using IProperty = Elastic.Clients.Elasticsearch.Mapping.IProperty;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal sealed class ElasticIndexer : ElasticServiceBase, IElasticIndexer
+internal sealed class ElasticsearchIndexer : ElasticsearchServiceBase, IElasticsearchIndexer
 {
-    private readonly IElasticClientFactory _clientFactory;
+    private readonly IElasticsearchClientFactory _clientFactory;
     private readonly IServerRoleAccessor _serverRoleAccessor;
-    private readonly ILogger<ElasticIndexer> _logger;
+    private readonly ILogger<ElasticsearchIndexer> _logger;
 
-    public ElasticIndexer(IElasticClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticIndexer> logger)
+    public ElasticsearchIndexer(IElasticsearchClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticsearchIndexer> logger)
     {
         _clientFactory = clientFactory;
         _serverRoleAccessor = serverRoleAccessor;

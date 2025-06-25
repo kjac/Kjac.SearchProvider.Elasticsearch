@@ -2,7 +2,7 @@
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-public interface IElasticClientFactory
+public interface IElasticsearchClientFactory
 {
     ElasticsearchClient GetClient();
 }

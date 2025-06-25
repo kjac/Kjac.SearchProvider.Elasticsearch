@@ -19,13 +19,13 @@ using Umbraco.Extensions;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
+internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
-    private readonly IElasticClientFactory _clientFactory;
-    private readonly ILogger<ElasticSearcher> _logger;
+    private readonly IElasticsearchClientFactory _clientFactory;
+    private readonly ILogger<ElasticsearchSearcher> _logger;
     private readonly int _maxFacetValues;
 
-    public ElasticSearcher(IElasticClientFactory clientFactory, IOptions<ElasticClient> options, ILogger<ElasticSearcher> logger)
+    public ElasticsearchSearcher(IElasticsearchClientFactory clientFactory, IOptions<ElasticsearchClientOptions> options, ILogger<ElasticsearchSearcher> logger)
     {
         _clientFactory = clientFactory;
         _maxFacetValues = options.Value.MaxFacetValues;
@@ -278,7 +278,7 @@ internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
                     return new Document(key, objectType);
                 }
 
-                _logger.LogWarning("Required document fields were not found in Elastic search result hit: {hitId}", hit.Id);
+                _logger.LogWarning("Required document fields were not found in Elasticsearch result hit: {hitId}", hit.Id);
                 return null;
             })
             .WhereNotNull()
@@ -306,7 +306,7 @@ internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
     {
         if (aggregations.TryGetValue(FacetName(facet), out var aggregation) is false)
         {
-            _logger.LogWarning("Could not find any Elastic facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
+            _logger.LogWarning("Could not find any facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
             return null;
         }
 
@@ -314,7 +314,7 @@ internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
         {
             if(filterAggregate.Aggregations.TryGetValue(facet.FieldName, out aggregation) is false)
             {
-                _logger.LogWarning("Could not find the expected, nested Elastic facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
+                _logger.LogWarning("Could not find the expected, nested facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
                 return null;
             }
         }
@@ -543,7 +543,7 @@ internal sealed class ElasticSearcher : ElasticServiceBase, IElasticSearcher
                         )) 
         };
 
-    // NOTE: the Elastic client is strongly typed, but since we don't care about indexed data, we won't be returning any;
+    // NOTE: the Elasticsearch client is strongly typed, but since we don't care about indexed data, we won't be returning any;
     //       we'll use explicit fields extraction to get the document keys from a search result.
     private record SearchResultDocument
     {

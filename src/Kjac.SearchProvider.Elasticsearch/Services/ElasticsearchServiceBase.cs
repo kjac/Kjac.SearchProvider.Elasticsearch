@@ -4,7 +4,7 @@ using Kjac.SearchProvider.Elasticsearch.Constants;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal abstract class ElasticServiceBase
+internal abstract class ElasticsearchServiceBase
 {
     protected string FieldName(string fieldName, string postfix) => $"{IndexConstants.FieldNames.Fields}.{fieldName}{postfix}";
 

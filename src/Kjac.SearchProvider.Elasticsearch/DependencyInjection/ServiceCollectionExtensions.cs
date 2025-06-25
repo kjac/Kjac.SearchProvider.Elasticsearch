@@ -6,17 +6,17 @@ namespace Kjac.SearchProvider.Elasticsearch.DependencyInjection;
 
 internal static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddElastic(this IServiceCollection services)
+    public static IServiceCollection AddElasticsearch(this IServiceCollection services)
     {
-        // register the Elastic searcher and indexer so they can be used explicitly for index registrations
-        services.AddTransient<IElasticIndexer, ElasticIndexer>();
-        services.AddTransient<IElasticSearcher, ElasticSearcher>();
+        // register the Elasticsearch searcher and indexer so they can be used explicitly for index registrations
+        services.AddTransient<IElasticsearchIndexer, ElasticsearchIndexer>();
+        services.AddTransient<IElasticsearchSearcher, ElasticsearchSearcher>();
 
-        // register the Elastic searcher and indexer as the defaults
-        services.AddTransient<IIndexer, ElasticIndexer>();
-        services.AddTransient<ISearcher, ElasticSearcher>();
+        // register the Elasticsearch searcher and indexer as the defaults
+        services.AddTransient<IIndexer, ElasticsearchIndexer>();
+        services.AddTransient<ISearcher, ElasticsearchSearcher>();
 
-        services.AddSingleton<IElasticClientFactory, ElasticClientFactory>();
+        services.AddSingleton<IElasticsearchClientFactory, ElasticsearchClientFactory>();
 
         return services;
     }

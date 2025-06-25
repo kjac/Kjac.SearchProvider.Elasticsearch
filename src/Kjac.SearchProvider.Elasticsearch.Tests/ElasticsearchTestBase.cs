@@ -6,7 +6,7 @@ using Umbraco.Cms.Core.Sync;
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
 [TestFixture]
-public abstract class ElasticTestBase
+public abstract class ElasticsearchTestBase
 {
     private ServiceProvider _serviceProvider;
 
@@ -15,10 +15,10 @@ public abstract class ElasticTestBase
     {
         var serviceCollection = new ServiceCollection();
         serviceCollection
-            .AddElastic()
+            .AddElasticsearch()
             .AddLogging();
 
-        serviceCollection.Configure<ElasticClient>(options =>
+        serviceCollection.Configure<ElasticsearchClientOptions>(options =>
         {
             options.Host = new Uri("http://localhost:9200");
             

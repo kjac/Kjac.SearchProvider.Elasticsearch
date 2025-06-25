@@ -1,15 +1,15 @@
 ﻿using Elastic.Clients.Elasticsearch;
-using Microsoft.Extensions.Options;
 using Kjac.SearchProvider.Elasticsearch.Configuration;
+using Microsoft.Extensions.Options;
 using BasicAuthentication = Elastic.Transport.BasicAuthentication;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal sealed class ElasticClientFactory : IElasticClientFactory
+internal sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 {
     private readonly ElasticsearchClient _client;
 
-    public ElasticClientFactory(IOptions<ElasticClient> options)
+    public ElasticsearchClientFactory(IOptions<ElasticsearchClientOptions> options)
     {
         var elasticClientOptions = options.Value;
         var settings = new ElasticsearchClientSettings(elasticClientOptions.Host);

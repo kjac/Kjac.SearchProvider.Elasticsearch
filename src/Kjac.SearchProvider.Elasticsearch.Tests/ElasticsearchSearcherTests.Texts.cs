@@ -5,7 +5,7 @@ using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
 // tests specifically related to the IndexValue.Texts collection
-public partial class ElasticSearcherTests
+public partial class ElasticsearchSearcherTests
 {
     [Test]
     public async Task CanFilterSingleDocumentBySpecificText()

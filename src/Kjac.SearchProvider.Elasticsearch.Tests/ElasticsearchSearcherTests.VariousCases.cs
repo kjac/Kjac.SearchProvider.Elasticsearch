@@ -7,7 +7,7 @@ using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
 // various tests unrelated to specific IndexValue collections or spanning multiple IndexValue collections
-public partial class ElasticSearcherTests
+public partial class ElasticsearchSearcherTests
 {
     [Test]
     public async Task FilteringWithoutFacetsYieldsNoFacetValues()

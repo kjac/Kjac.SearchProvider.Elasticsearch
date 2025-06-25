@@ -1,7 +1,4 @@
-﻿using Kjac.SearchProvider.Elasticsearch.Extensions;
-using Kjac.SearchProvider.Elasticsearch.Services;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+﻿using Kjac.SearchProvider.Elasticsearch.Services;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Cms.Search.Core.Models.Indexing;
@@ -12,7 +9,7 @@ using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-partial class ElasticSearcherTests : ElasticTestBase
+partial class ElasticsearchSearcherTests : ElasticsearchTestBase
 {
     private const string IndexAlias = "testindex";
     private const string FieldMultipleValues = "FieldOne";
@@ -25,7 +22,7 @@ partial class ElasticSearcherTests : ElasticTestBase
     {
         await EnsureIndex();
 
-        var indexer = GetRequiredService<IElasticIndexer>();
+        var indexer = GetRequiredService<IElasticsearchIndexer>();
 
         // TODO: figure out a way to ensure that the fields collection is correctly mapped from the get-go
         //       - at this time, if the first field collection contains an integer value for Decimals, the
@@ -169,7 +166,7 @@ partial class ElasticSearcherTests : ElasticTestBase
         int skip = 0,
         int take = 100)
     {
-        var searcher = GetRequiredService<IElasticSearcher>();
+        var searcher = GetRequiredService<IElasticsearchSearcher>();
         var result = await searcher.SearchAsync(IndexAlias, query, filters, facets, sorters, culture, segment, accessContext, skip, take);
 
         Assert.That(result, Is.Not.Null);
@@ -180,12 +177,12 @@ partial class ElasticSearcherTests : ElasticTestBase
     {
         await DeleteIndex();
 
-        await GetRequiredService<IElasticIndexer>().EnsureAsync(IndexAlias);
+        await GetRequiredService<IElasticsearchIndexer>().EnsureAsync(IndexAlias);
     }
 
     private async Task DeleteIndex()
     {
-        await GetRequiredService<IElasticIndexer>().ResetAsync(IndexAlias);
+        await GetRequiredService<IElasticsearchIndexer>().ResetAsync(IndexAlias);
     }
 
     private DateTimeOffset StartDate()

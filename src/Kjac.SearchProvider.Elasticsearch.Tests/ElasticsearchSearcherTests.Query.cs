@@ -3,7 +3,7 @@
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
 // tests specifically related to free text querying
-public partial class ElasticSearcherTests
+public partial class ElasticsearchSearcherTests
 {
     [Test]
     public async Task CanFilterSingleDocumentByQuery()

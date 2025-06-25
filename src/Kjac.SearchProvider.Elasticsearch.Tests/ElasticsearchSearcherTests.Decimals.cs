@@ -6,14 +6,14 @@ using Umbraco.Extensions;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-// tests specifically related to the IndexValue.Integers collection
-public partial class ElasticSearcherTests
+// tests specifically related to the IndexValue.Decimals collection
+public partial class ElasticsearchSearcherTests
 {
     [Test]
-    public async Task CanFilterSingleDocumentByIntegerExact()
+    public async Task CanFilterSingleDocumentByDecimalExact()
     {
         var result = await SearchAsync(
-            filters: [new IntegerExactFilter(FieldMultipleValues, [1], false)]
+            filters: [new DecimalExactFilter(FieldMultipleValues, [1.5m], false)]
         );
 
         Assert.Multiple(() =>
@@ -24,24 +24,10 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterSingleDocumentByNegativeIntegerExact()
+    public async Task CanFilterSingleDocumentByNegativeDecimalExact()
     {
         var result = await SearchAsync(
-            filters: [new IntegerExactFilter(FieldMultipleValues, [-2], false)]
-        );
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.Total, Is.EqualTo(1));
-            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[2]));
-        });
-    }
-
-    [Test]
-    public async Task CanFilterSingleDocumentByIntegerRange()
-    {
-        var result = await SearchAsync(
-            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 2)], false)]
+            filters: [new DecimalExactFilter(FieldMultipleValues, [-1.5m], false)]
         );
 
         Assert.Multiple(() =>
@@ -52,60 +38,75 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterSingleDocumentByNegativeIntegerRange()
+    public async Task CanFilterSingleDocumentByDecimalRange()
     {
         var result = await SearchAsync(
-            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(-2, -1)], false)]
+            filters: [new DecimalRangeFilter(FieldMultipleValues, [new FilterRange<decimal?>(1m, 2m)], false)]
         );
 
         Assert.Multiple(() =>
         {
             Assert.That(result.Total, Is.EqualTo(1));
-            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[2]));
+            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[1]));
         });
     }
 
     [Test]
-    public async Task CanFilterMultipleDocumentsByIntegerExact()
+    public async Task CanFilterSingleDocumentByNegativeDecimalRange()
     {
         var result = await SearchAsync(
-            filters: [new IntegerExactFilter(FieldMultipleValues, [10, 50, 100], false)]
+            filters: [new DecimalRangeFilter(FieldMultipleValues, [new FilterRange<decimal?>(-1.9m, -1.1m)], false)]
         );
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Total, Is.EqualTo(5));
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[1]));
+        });
+    }
+
+    [Test]
+    public async Task CanFilterMultipleDocumentsByDecimalExact()
+    {
+        var result = await SearchAsync(
+            filters: [new DecimalExactFilter(FieldMultipleValues, [15m, 30m, 42m], false)]
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(6));
 
             var documents = result.Documents.ToList();
-            // expecting 1 (10), 5 (50), 10 (10 + 100), 50 (50) and 100 (100)
+            // expecting 10 (15), 15 (15), 20 (30), 28 (42), 30 (30) and 42 (42)
             Assert.That(
                 documents.Select(d => d.Id),
                 Is.EqualTo(new[]
                 {
-                    _documentIds[1],
-                    _documentIds[5],
                     _documentIds[10],
-                    _documentIds[50],
-                    _documentIds[100]
+                    _documentIds[15],
+                    _documentIds[20],
+                    _documentIds[28],
+                    _documentIds[30],
+                    _documentIds[42]
                 }).AsCollection
             );
         });
     }
 
     [Test]
-    public async Task CanFilterMultipleDocumentsByIntegerRange()
+    public async Task CanFilterMultipleDocumentsByDecimalRange()
     {
         var result = await SearchAsync(
-            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 5), new FilterRange<int?>(20, 25), new FilterRange<int?>(100, 101)], false)]
+            filters: [new DecimalRangeFilter(FieldMultipleValues, [new FilterRange<decimal?>(1m, 5m), new FilterRange<decimal?>(20m, 25m), new FilterRange<decimal?>(100m, 101m)], false)]
         );
 
         Assert.Multiple(() =>
         {
             // expecting
             // - first range: 1, 2, 3, 4
-            // - second range: 2 (20), 20, 21, 22, 23, 24
-            // - third range: 10 (100), 100
-            Assert.That(result.Total, Is.EqualTo(11));
+            // - second range: 14 (21), 15 (22.5), 16 (24), 20, 21, 22, 23, 24
+            // - third range: 67 (100.5), 100
+            Assert.That(result.Total, Is.EqualTo(14));
 
             var documents = result.Documents.ToList();
             Assert.That(
@@ -116,12 +117,15 @@ public partial class ElasticSearcherTests
                     _documentIds[2],
                     _documentIds[3],
                     _documentIds[4],
-                    _documentIds[10],
+                    _documentIds[14],
+                    _documentIds[15],
+                    _documentIds[16],
                     _documentIds[20],
                     _documentIds[21],
                     _documentIds[22],
                     _documentIds[23],
                     _documentIds[24],
+                    _documentIds[67],
                     _documentIds[100],
                 })
             );
@@ -129,10 +133,10 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterDocumentsByIntegerExactNegated()
+    public async Task CanFilterDocumentsByDecimalExactNegated()
     {
         var result = await SearchAsync(
-            filters: [new IntegerExactFilter(FieldMultipleValues, [1], true)]
+            filters: [new DecimalExactFilter(FieldMultipleValues, [1.5m], true)]
         );
 
         Assert.Multiple(() =>
@@ -143,10 +147,10 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterDocumentsByIntegerRangeNegated()
+    public async Task CanFilterDocumentsByDecimalRangeNegated()
     {
         var result = await SearchAsync(
-            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 2)], true)]
+            filters: [new DecimalRangeFilter(FieldMultipleValues, [new FilterRange<decimal?>(1m, 2m)], true)]
         );
 
         Assert.Multiple(() =>
@@ -158,18 +162,18 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFacetDocumentsByIntegerExact(bool filtered)
+    public async Task CanFacetDocumentsByDecimalExact(bool filtered)
     {
         var result = await SearchAsync(
-            facets: [new IntegerExactFacet(FieldMultipleValues)],
-            filters: filtered ? [new IntegerExactFilter(FieldMultipleValues, [1, 2, 3], false)] : []
+            facets: [new DecimalExactFacet(FieldMultipleValues)],
+            filters: filtered ? [new DecimalExactFilter(FieldMultipleValues, [1m, 2m, 3m], false)] : []
         );
 
         // expecting the same facets whether filtering is enabled or not, because
         // both faceting and filtering is applied to the same field
         var expectedFacetValues = Enumerable
             .Range(1, 100)
-            .SelectMany(i => new[] { i, i * 10, i * -1, i * -10 })
+            .SelectMany(i => new[] { i, i * 1.5m, i * -1m, i * -1.5m })
             .GroupBy(i => i)
             .Select(group => new
             {
@@ -188,8 +192,8 @@ public partial class ElasticSearcherTests
 
         var facet = facets.First();
         Assert.That(facet.FieldName, Is.EqualTo(FieldMultipleValues));
-
-        var facetValues = facet.Values.OfType<IntegerExactFacetValue>().ToArray();
+        
+        var facetValues = facet.Values.OfType<DecimalExactFacetValue>().ToArray();
         Assert.That(facetValues, Has.Length.EqualTo(expectedFacetValues.Length));
         foreach (var expectedFacetValue in expectedFacetValues)
         {
@@ -201,34 +205,34 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFacetDocumentsByIntegerRange(bool filtered)
+    public async Task CanFacetDocumentsByDecimalRange(bool filtered)
     {
         var result = await SearchAsync(
             facets: [
-                new IntegerRangeFacet(
+                new DecimalRangeFacet(
                     FieldMultipleValues,
                     [
-                        new IntegerRangeFacetRange("One", 1, 25),
-                        new IntegerRangeFacetRange("Two", 25, 50),
-                        new IntegerRangeFacetRange("Three", 50, 75),
-                        new IntegerRangeFacetRange("Four", 75, 100)
+                        new DecimalRangeFacetRange("One", 1m, 25m),
+                        new DecimalRangeFacetRange("Two", 25m, 50m),
+                        new DecimalRangeFacetRange("Three", 50m, 75m),
+                        new DecimalRangeFacetRange("Four", 75m, 100m)
                     ]
                 )
             ],
-            filters: filtered ? [new IntegerExactFilter(FieldMultipleValues, [1, 2, 3], false)] : []
+            filters: filtered ? [new DecimalExactFilter(FieldMultipleValues, [1m, 2m, 3m], false)] : []
         );
 
         // expecting the same facets whether filtering is enabled or not, because
         // both faceting and filtering is applied to the same field
         var expectedFacetValues = Enumerable
             .Range(1, 100)
-            .SelectMany(i => new[] { i, i * 10 }
+            .SelectMany(i => new[] { i, i * 1.5m }
                 .Select(value => value switch
                 {
-                    < 25 => "One",
-                    < 50 => "Two",
-                    < 75 => "Three",
-                    < 100 => "Four",
+                    < 25m => "One",
+                    < 50m => "Two",
+                    < 75m => "Three",
+                    < 100m => "Four",
                     _ => null
                 })
                 .WhereNotNull()
@@ -254,7 +258,7 @@ public partial class ElasticSearcherTests
         var facet = facets.First();
         Assert.That(facet.FieldName, Is.EqualTo(FieldMultipleValues));
         
-        var facetValues = facet.Values.OfType<IntegerRangeFacetValue>().ToArray();
+        var facetValues = facet.Values.OfType<DecimalRangeFacetValue>().ToArray();
         Assert.That(facetValues, Has.Length.EqualTo(expectedFacetValues.Length));
         foreach (var expectedFacetValue in expectedFacetValues)
         {
@@ -266,10 +270,10 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanSortDocumentsByInteger(bool ascending)
+    public async Task CanSortDocumentsByDecimal(bool ascending)
     {
         var result = await SearchAsync(
-            sorters: [new IntegerSorter(FieldSingleValue, ascending ? Direction.Ascending : Direction.Descending)]
+            sorters: [new DecimalSorter(FieldSingleValue, ascending ? Direction.Ascending : Direction.Descending)]
         );
 
         Assert.Multiple(() =>

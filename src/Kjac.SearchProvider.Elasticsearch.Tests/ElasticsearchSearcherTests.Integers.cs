@@ -6,14 +6,14 @@ using Umbraco.Extensions;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-// tests specifically related to the IndexValue.DateTimeOffsets collection
-public partial class ElasticSearcherTests
+// tests specifically related to the IndexValue.Integers collection
+public partial class ElasticsearchSearcherTests
 {
     [Test]
-    public async Task CanFilterSingleDocumentByDateTimeOffsetExact()
+    public async Task CanFilterSingleDocumentByIntegerExact()
     {
         var result = await SearchAsync(
-            filters: [new DateTimeOffsetExactFilter(FieldMultipleValues, [StartDate().AddDays(1)], false)]
+            filters: [new IntegerExactFilter(FieldMultipleValues, [1], false)]
         );
 
         Assert.Multiple(() =>
@@ -24,10 +24,24 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterSingleDocumentByDateTimeOffsetRange()
+    public async Task CanFilterSingleDocumentByNegativeIntegerExact()
     {
         var result = await SearchAsync(
-            filters: [new DateTimeOffsetRangeFilter(FieldMultipleValues, [new FilterRange<DateTimeOffset?>(StartDate().AddDays(1), StartDate().AddDays(2))], false)]
+            filters: [new IntegerExactFilter(FieldMultipleValues, [-2], false)]
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[2]));
+        });
+    }
+
+    [Test]
+    public async Task CanFilterSingleDocumentByIntegerRange()
+    {
+        var result = await SearchAsync(
+            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 2)], false)]
         );
 
         Assert.Multiple(() =>
@@ -38,10 +52,24 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterMultipleDocumentsByDateTimeOffsetExact()
+    public async Task CanFilterSingleDocumentByNegativeIntegerRange()
     {
         var result = await SearchAsync(
-            filters: [new DateTimeOffsetExactFilter(FieldMultipleValues, [StartDate().AddDays(10), StartDate().AddDays(50), StartDate().AddDays(100)], false)]
+            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(-2, -1)], false)]
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[2]));
+        });
+    }
+
+    [Test]
+    public async Task CanFilterMultipleDocumentsByIntegerExact()
+    {
+        var result = await SearchAsync(
+            filters: [new IntegerExactFilter(FieldMultipleValues, [10, 50, 100], false)]
         );
 
         Assert.Multiple(() =>
@@ -49,14 +77,14 @@ public partial class ElasticSearcherTests
             Assert.That(result.Total, Is.EqualTo(5));
 
             var documents = result.Documents.ToList();
-            // expecting 5 (10), 10 (10), 25 (50), 50 (50 + 100) and 100 (100)
+            // expecting 1 (10), 5 (50), 10 (10 + 100), 50 (50) and 100 (100)
             Assert.That(
                 documents.Select(d => d.Id),
                 Is.EqualTo(new[]
                 {
+                    _documentIds[1],
                     _documentIds[5],
                     _documentIds[10],
-                    _documentIds[25],
                     _documentIds[50],
                     _documentIds[100]
                 }).AsCollection
@@ -65,29 +93,19 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterMultipleDocumentsByDateTimeOffsetRange()
+    public async Task CanFilterMultipleDocumentsByIntegerRange()
     {
         var result = await SearchAsync(
-            filters: [
-                new DateTimeOffsetRangeFilter(
-                    FieldMultipleValues,
-                    [
-                        new FilterRange<DateTimeOffset?>(StartDate().AddDays(1), StartDate().AddDays(5)),
-                        new FilterRange<DateTimeOffset?>(StartDate().AddDays(20), StartDate().AddDays(25)),
-                        new FilterRange<DateTimeOffset?>(StartDate().AddDays(100), StartDate().AddDays(101))
-                    ],
-                    false
-                )
-            ]
+            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 5), new FilterRange<int?>(20, 25), new FilterRange<int?>(100, 101)], false)]
         );
 
         Assert.Multiple(() =>
         {
             // expecting
             // - first range: 1, 2, 3, 4
-            // - second range: 10 (20), 11 (22), 12 (24), 20, 21, 22, 23, 24
-            // - third range: 50 (100), 100
-            Assert.That(result.Total, Is.EqualTo(14));
+            // - second range: 2 (20), 20, 21, 22, 23, 24
+            // - third range: 10 (100), 100
+            Assert.That(result.Total, Is.EqualTo(11));
 
             var documents = result.Documents.ToList();
             Assert.That(
@@ -99,14 +117,11 @@ public partial class ElasticSearcherTests
                     _documentIds[3],
                     _documentIds[4],
                     _documentIds[10],
-                    _documentIds[11],
-                    _documentIds[12],
                     _documentIds[20],
                     _documentIds[21],
                     _documentIds[22],
                     _documentIds[23],
                     _documentIds[24],
-                    _documentIds[50],
                     _documentIds[100],
                 })
             );
@@ -114,10 +129,10 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterDocumentsByDateTimeOffsetExactNegated()
+    public async Task CanFilterDocumentsByIntegerExactNegated()
     {
         var result = await SearchAsync(
-            filters: [new DateTimeOffsetExactFilter(FieldMultipleValues, [StartDate().AddDays(1)], true)]
+            filters: [new IntegerExactFilter(FieldMultipleValues, [1], true)]
         );
 
         Assert.Multiple(() =>
@@ -128,10 +143,10 @@ public partial class ElasticSearcherTests
     }
 
     [Test]
-    public async Task CanFilterDocumentsByDateTimeOffsetRangeNegated()
+    public async Task CanFilterDocumentsByIntegerRangeNegated()
     {
         var result = await SearchAsync(
-            filters: [new DateTimeOffsetRangeFilter(FieldMultipleValues, [new FilterRange<DateTimeOffset?>(StartDate().AddDays(1), StartDate().AddDays(2))], true)]
+            filters: [new IntegerRangeFilter(FieldMultipleValues, [new FilterRange<int?>(1, 2)], true)]
         );
 
         Assert.Multiple(() =>
@@ -143,18 +158,18 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFacetDocumentsByDateTimeOffsetExact(bool filtered)
+    public async Task CanFacetDocumentsByIntegerExact(bool filtered)
     {
         var result = await SearchAsync(
-            facets: [new DateTimeOffsetExactFacet(FieldMultipleValues)],
-            filters: filtered ? [new DateTimeOffsetExactFilter(FieldMultipleValues, [StartDate().AddDays(1), StartDate().AddDays(2), StartDate().AddDays(3)], false)] : []
+            facets: [new IntegerExactFacet(FieldMultipleValues)],
+            filters: filtered ? [new IntegerExactFilter(FieldMultipleValues, [1, 2, 3], false)] : []
         );
 
         // expecting the same facets whether filtering is enabled or not, because
         // both faceting and filtering is applied to the same field
         var expectedFacetValues = Enumerable
             .Range(1, 100)
-            .SelectMany(i => new[] { 0, i, i * 2 }.Select(i2 => StartDate().AddDays(i2)))
+            .SelectMany(i => new[] { i, i * 10, i * -1, i * -10 })
             .GroupBy(i => i)
             .Select(group => new
             {
@@ -174,7 +189,7 @@ public partial class ElasticSearcherTests
         var facet = facets.First();
         Assert.That(facet.FieldName, Is.EqualTo(FieldMultipleValues));
 
-        var facetValues = facet.Values.OfType<DateTimeOffsetExactFacetValue>().ToArray();
+        var facetValues = facet.Values.OfType<IntegerExactFacetValue>().ToArray();
         Assert.That(facetValues, Has.Length.EqualTo(expectedFacetValues.Length));
         foreach (var expectedFacetValue in expectedFacetValues)
         {
@@ -186,28 +201,28 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFacetDocumentsByDateTimeOffsetRange(bool filtered)
+    public async Task CanFacetDocumentsByIntegerRange(bool filtered)
     {
         var result = await SearchAsync(
             facets: [
-                new DateTimeOffsetRangeFacet(
+                new IntegerRangeFacet(
                     FieldMultipleValues,
                     [
-                        new DateTimeOffsetRangeFacetRange("One", StartDate().AddDays(1), StartDate().AddDays(25)),
-                        new DateTimeOffsetRangeFacetRange("Two", StartDate().AddDays(25), StartDate().AddDays(50)),
-                        new DateTimeOffsetRangeFacetRange("Three", StartDate().AddDays(50), StartDate().AddDays(75)),
-                        new DateTimeOffsetRangeFacetRange("Four", StartDate().AddDays(75), StartDate().AddDays(100))
+                        new IntegerRangeFacetRange("One", 1, 25),
+                        new IntegerRangeFacetRange("Two", 25, 50),
+                        new IntegerRangeFacetRange("Three", 50, 75),
+                        new IntegerRangeFacetRange("Four", 75, 100)
                     ]
                 )
             ],
-            filters: filtered ? [new DateTimeOffsetExactFilter(FieldMultipleValues, [StartDate().AddDays(1), StartDate().AddDays(2), StartDate().AddDays(3)], false)] : []
+            filters: filtered ? [new IntegerExactFilter(FieldMultipleValues, [1, 2, 3], false)] : []
         );
 
         // expecting the same facets whether filtering is enabled or not, because
         // both faceting and filtering is applied to the same field
         var expectedFacetValues = Enumerable
             .Range(1, 100)
-            .SelectMany(i => new[] { i, i * 2 }
+            .SelectMany(i => new[] { i, i * 10 }
                 .Select(value => value switch
                 {
                     < 25 => "One",
@@ -239,7 +254,7 @@ public partial class ElasticSearcherTests
         var facet = facets.First();
         Assert.That(facet.FieldName, Is.EqualTo(FieldMultipleValues));
         
-        var facetValues = facet.Values.OfType<DateTimeOffsetRangeFacetValue>().ToArray();
+        var facetValues = facet.Values.OfType<IntegerRangeFacetValue>().ToArray();
         Assert.That(facetValues, Has.Length.EqualTo(expectedFacetValues.Length));
         foreach (var expectedFacetValue in expectedFacetValues)
         {
@@ -251,10 +266,10 @@ public partial class ElasticSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanSortDocumentsByDateTimeOffset(bool ascending)
+    public async Task CanSortDocumentsByInteger(bool ascending)
     {
         var result = await SearchAsync(
-            sorters: [new DateTimeOffsetSorter(FieldSingleValue, ascending ? Direction.Ascending : Direction.Descending)]
+            sorters: [new IntegerSorter(FieldSingleValue, ascending ? Direction.Ascending : Direction.Descending)]
         );
 
         Assert.Multiple(() =>

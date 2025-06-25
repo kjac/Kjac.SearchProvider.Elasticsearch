@@ -1,6 +1,6 @@
 ﻿namespace Kjac.SearchProvider.Elasticsearch.Configuration;
 
-public class ElasticClient
+internal sealed class ElasticsearchClientOptions
 {
     public Uri? Host { get; set; }
     
