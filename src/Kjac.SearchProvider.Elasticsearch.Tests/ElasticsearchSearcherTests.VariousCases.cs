@@ -84,6 +84,46 @@ public partial class ElasticsearchSearcherTests
     }
 
     [Test]
+    public async Task CanHaveSameTypeFacetsWithinFields()
+    {
+        var result = await SearchAsync(
+            facets: [
+                new IntegerExactFacet(FieldSingleValue),
+                new IntegerRangeFacet(FieldSingleValue, [new IntegerRangeFacetRange("one", 1, 11)])
+            ]
+        );
+
+        Assert.That(result.Total, Is.EqualTo(100));
+
+        var facets = result.Facets.ToArray();
+        Assert.That(facets, Has.Length.EqualTo(2));
+        Assert.Multiple(() =>
+        {
+            Assert.That(facets[0].FieldName, Is.EqualTo(FieldSingleValue));
+            Assert.That(facets[1].FieldName, Is.EqualTo(FieldSingleValue));
+        });
+
+        var integerExactFacetValues = facets[0].Values.OfType<IntegerExactFacetValue>().ToArray();
+        Assert.That(integerExactFacetValues, Has.Length.EqualTo(100));
+
+        var integerRangeFacetValues = facets[1].Values.OfType<IntegerRangeFacetValue>().ToArray();
+        Assert.That(integerRangeFacetValues, Has.Length.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(integerRangeFacetValues.First().Count, Is.EqualTo(10));
+        });
+
+        for (var i = 0; i < 100; i++)
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(integerExactFacetValues[i].Key, Is.EqualTo(i + 1));
+                Assert.That(integerExactFacetValues[i].Count, Is.EqualTo(1));
+            });
+        }
+    }
+
+    [Test]
     public async Task CanCombineFacetsAcrossFields()
     {
         var result = await SearchAsync(
@@ -238,6 +278,45 @@ public partial class ElasticsearchSearcherTests
         for (var i = 0; i < 100; i++)
         {
             Assert.That(documents[i].Id, Is.EqualTo(_documentIds[expectedSortOrder[i]]));
+        }
+    }
+
+    [Test]
+    public async Task IgnoresDuplicateFacets()
+    {
+        var result = await SearchAsync(
+            facets:
+            [
+                new IntegerRangeFacet(
+                    FieldSingleValue,
+                    [
+                        new IntegerRangeFacetRange("one", 1, 11)
+                    ]
+                ),
+                new IntegerRangeFacet(
+                    FieldSingleValue,
+                    [
+                        new IntegerRangeFacetRange("one", 1, 5),
+                        new IntegerRangeFacetRange("two", 6, 10),
+                        new IntegerRangeFacetRange("three", 11, 20),
+                        new IntegerRangeFacetRange("four", 21, 25),
+                    ])
+            ]
+        );
+
+        Assert.That(result.Total, Is.EqualTo(100));
+
+        var facets = result.Facets.ToArray();
+        Assert.That(facets, Has.Length.EqualTo(2));
+
+        // the facet results are equal - the last facet (ignored) assumes the values of the first facet
+        foreach (var facet in facets)
+        {
+            Assert.That(facet.FieldName, Is.EqualTo(FieldSingleValue));
+            
+            var facetValues = facet.Values.OfType<IntegerRangeFacetValue>().ToArray();
+            Assert.That(facetValues, Has.Length.EqualTo(1));
+            Assert.That(facetValues.First().Count, Is.EqualTo(10));
         }
     }
 }

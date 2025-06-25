@@ -166,95 +166,117 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         void Inner(FluentDictionaryOfStringAggregation<SearchResultDocument> aggs, Facet facet)
         {
-            // TODO: try/catch to log duplicate keys
-            switch(facet)
+            try
             {
-                case KeywordFacet:
-                case IntegerExactFacet: 
-                case DecimalExactFacet:
-                case DateTimeOffsetExactFacet:
-                    aggs.Add(FacetName(facet), ad => ad.Terms(td => td.Field(FieldName(facet)).Size(_maxFacetValues)));
-                    break;
-                case IntegerRangeFacet integerRangeFacet:
-                    if (integerRangeFacet.Ranges.Length == 0)
-                    {
-                        _logger.LogWarning("The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.", integerRangeFacet.FieldName);
+                switch (facet)
+                {
+                    case KeywordFacet:
+                    case IntegerExactFacet:
+                    case DecimalExactFacet:
+                    case DateTimeOffsetExactFacet:
+                        aggs.Add(
+                            FacetName(facet),
+                            ad => ad.Terms(td => td.Field(FieldName(facet)).Size(_maxFacetValues))
+                        );
                         break;
-                    }
+                    case IntegerRangeFacet integerRangeFacet:
+                        if (integerRangeFacet.Ranges.Length == 0)
+                        {
+                            _logger.LogWarning(
+                                "The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.",
+                                integerRangeFacet.FieldName
+                            );
+                            break;
+                        }
 
-                    aggs.Add(
-                        FacetName(facet),
-                        ad => ad
-                            .Range(rd => rd
-                                .Field(FieldName(facet))
-                                .Ranges(integerRangeFacet.Ranges
-                                    .Select(r =>
-                                        new AggregationRange
-                                        {
-                                            Key = r.Key,
-                                            From = r.Min,
-                                            To = r.Max,
-                                        }
+                        aggs.Add(
+                            FacetName(facet),
+                            ad => ad
+                                .Range(rd => rd
+                                    .Field(FieldName(facet))
+                                    .Ranges(integerRangeFacet.Ranges
+                                        .Select(r =>
+                                            new AggregationRange
+                                            {
+                                                Key = r.Key,
+                                                From = r.Min,
+                                                To = r.Max,
+                                            }
+                                        )
+                                        .ToArray()
                                     )
-                                    .ToArray()
                                 )
-                            )
-                    );
-                    break;
-                case DecimalRangeFacet decimalRangeFacet:
-                    if (decimalRangeFacet.Ranges.Length == 0)
-                    {
-                        _logger.LogWarning("The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.", decimalRangeFacet.FieldName);
+                        );
                         break;
-                    }
+                    case DecimalRangeFacet decimalRangeFacet:
+                        if (decimalRangeFacet.Ranges.Length == 0)
+                        {
+                            _logger.LogWarning(
+                                "The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.",
+                                decimalRangeFacet.FieldName
+                            );
+                            break;
+                        }
 
-                    aggs.Add(
-                        FacetName(facet),
-                        ad => ad
-                            .Range(rd => rd
-                                .Field(FieldName(facet))
-                                .Ranges(decimalRangeFacet.Ranges
-                                    .Select(r =>
-                                        new AggregationRange
-                                        {
-                                            Key = r.Key,
-                                            From = r.Min.HasValue ? Convert.ToDouble(r.Min.Value) : null,
-                                            To = r.Max.HasValue ? Convert.ToDouble(r.Max.Value) : null
-                                        }
+                        aggs.Add(
+                            FacetName(facet),
+                            ad => ad
+                                .Range(rd => rd
+                                    .Field(FieldName(facet))
+                                    .Ranges(decimalRangeFacet.Ranges
+                                        .Select(r =>
+                                            new AggregationRange
+                                            {
+                                                Key = r.Key,
+                                                From = r.Min.HasValue ? Convert.ToDouble(r.Min.Value) : null,
+                                                To = r.Max.HasValue ? Convert.ToDouble(r.Max.Value) : null
+                                            }
+                                        )
+                                        .ToArray()
                                     )
-                                    .ToArray()
                                 )
-                            )
-                    );
-                    break;
-                case DateTimeOffsetRangeFacet dateTimeOffsetRangeFacet:
-                    if (dateTimeOffsetRangeFacet.Ranges.Length == 0)
-                    {
-                        _logger.LogWarning("The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.", dateTimeOffsetRangeFacet.FieldName);
+                        );
                         break;
-                    }
+                    case DateTimeOffsetRangeFacet dateTimeOffsetRangeFacet:
+                        if (dateTimeOffsetRangeFacet.Ranges.Length == 0)
+                        {
+                            _logger.LogWarning(
+                                "The range facet for field \"{FieldName}\" had no ranges defined, so it was skipped.",
+                                dateTimeOffsetRangeFacet.FieldName
+                            );
+                            break;
+                        }
 
-                    aggs.Add(
-                        FacetName(facet),
-                        ad => ad
-                            .Range(rd => rd
-                                .Field(FieldName(facet))
-                                .Ranges(dateTimeOffsetRangeFacet.Ranges
-                                    .Select(r =>
-                                        new AggregationRange
-                                        {
-                                            Key = r.Key,
-                                            From = r.Min?.ToUnixTimeMilliseconds(),
-                                            To = r.Max?.ToUnixTimeMilliseconds()
-                                        }
+                        aggs.Add(
+                            FacetName(facet),
+                            ad => ad
+                                .Range(rd => rd
+                                    .Field(FieldName(facet))
+                                    .Ranges(dateTimeOffsetRangeFacet.Ranges
+                                        .Select(r =>
+                                            new AggregationRange
+                                            {
+                                                Key = r.Key,
+                                                From = r.Min?.ToUnixTimeMilliseconds(),
+                                                To = r.Max?.ToUnixTimeMilliseconds()
+                                            }
+                                        )
+                                        .ToArray()
                                     )
-                                    .ToArray()
                                 )
-                            )
-                    );
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(facet), $"Encountered an unsupported filter type: {facet.GetType().Name}");
+                        );
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(facet), $"Encountered an unsupported facet type: {facet.GetType().Name}");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "An error occurred while attempting to add a facet for field \"{FieldName}\", so it was skipped.",
+                    facet.FieldName
+                );
             }
         }
     }
