@@ -28,25 +28,25 @@
 
     <ItemGroup>
       <Compile Update="ElasticsearchSearcherTests.Integers.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.Decimals.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.Keywords.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.DateTimeOffsets.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.Texts.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.Query.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
       <Compile Update="ElasticsearchSearcherTests.VariousCases.cs">
-        <DependentUpon>ElasticSearcherTests.cs</DependentUpon>
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
     </ItemGroup>
 
