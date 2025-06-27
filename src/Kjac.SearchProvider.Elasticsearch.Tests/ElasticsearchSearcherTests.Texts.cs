@@ -117,6 +117,34 @@ public partial class ElasticsearchSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
+    public async Task CanFilterAllDocumentsByWildcardTextSortedByTextualRelevance(bool ascending)
+    {
+        var result = await SearchAsync(
+            filters: [new TextFilter(FieldTextRelevance, ["spec"], false)],
+            sorters: [new ScoreSorter(ascending ? Direction.Ascending : Direction.Descending)]
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(4));
+
+            var expectedDocumentIdsByOrderOfRelevance = new[]
+            {
+                _documentIds[30], // TextsR1
+                _documentIds[20], // TextsR2
+                _documentIds[40], // TextsR3 
+                _documentIds[10]  // Texts
+            };
+            if (ascending)
+            {
+                expectedDocumentIdsByOrderOfRelevance = expectedDocumentIdsByOrderOfRelevance.Reverse().ToArray();
+            }
+            Assert.That(result.Documents.Select(d => d.Id), Is.EqualTo(expectedDocumentIdsByOrderOfRelevance).AsCollection);
+        });
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
     public async Task CanSortDocumentsByText(bool ascending)
     {
         var result = await SearchAsync(

@@ -48,6 +48,15 @@
       <Compile Update="ElasticsearchSearcherTests.VariousCases.cs">
         <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
       </Compile>
+      <Compile Update="ElasticsearchSearcherTests.TextsR1.cs">
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
+      </Compile>
+      <Compile Update="ElasticsearchSearcherTests.TextsR2.cs">
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
+      </Compile>
+      <Compile Update="ElasticsearchSearcherTests.TextsR3.cs">
+        <DependentUpon>ElasticsearchSearcherTests.cs</DependentUpon>
+      </Compile>
     </ItemGroup>
 
 </Project>

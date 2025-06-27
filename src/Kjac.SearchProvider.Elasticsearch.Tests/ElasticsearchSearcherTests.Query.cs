@@ -1,15 +1,21 @@
-﻿using Umbraco.Cms.Search.Core.Models.Searching.Filtering;
+﻿using Umbraco.Cms.Core;
+using Umbraco.Cms.Search.Core.Models.Searching.Filtering;
+using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
 // tests specifically related to free text querying
 public partial class ElasticsearchSearcherTests
 {
-    [Test]
-    public async Task CanFilterSingleDocumentByQuery()
+    [TestCase(null)]
+    [TestCase("R1")]
+    [TestCase("R2")]
+    [TestCase("R3")]
+    public async Task CanQuerySingleDocument(string? relevanceLevel)
     {
+        var query = $"texts{(relevanceLevel is not null ? $"_{relevanceLevel.ToLowerInvariant()}" : null)}_12"; 
         var result = await SearchAsync(
-            query: "single12"
+            query: query
         );
 
         Assert.Multiple(() =>
@@ -20,7 +26,7 @@ public partial class ElasticsearchSearcherTests
     }
 
     [Test]
-    public async Task CanFilterMultipleDocumentsByQuery()
+    public async Task CanQueryMultipleDocuments()
     {
         var result = await SearchAsync(
             query: "single1"
@@ -54,7 +60,7 @@ public partial class ElasticsearchSearcherTests
     }
 
     [Test]
-    public async Task CanFilterSingleDocumentByPhraseQuery()
+    public async Task CanQuerySingleDocumentByPhrase()
     {
         var result = await SearchAsync(
             query: "phrase search single12"
@@ -68,7 +74,7 @@ public partial class ElasticsearchSearcherTests
     }
 
     [Test]
-    public async Task CanFilterSingleDocumentByInversePhraseQuery()
+    public async Task CanQuerySingleDocumentByPhraseInverted()
     {
         var result = await SearchAsync(
             query: "single12 search phrase"
@@ -83,7 +89,7 @@ public partial class ElasticsearchSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFilterMultipleDocumentsByCommonQuery(bool even)
+    public async Task CanQueryMultipleDocumentsByCommonWord(bool even)
     {
         var result = await SearchAsync(
             query: even ? "even" : "odd"
@@ -102,17 +108,31 @@ public partial class ElasticsearchSearcherTests
         });
     }
 
-    [Test]
-    public async Task CanFilterAllDocumentsByWildcardQuery()
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CanQueryDocumentsByTextualRelevance(bool ascending)
     {
         var result = await SearchAsync(
-            filters: [new TextFilter(FieldMultipleValues, ["single"], false)]
+            query: "special",
+            sorters: [new ScoreSorter(ascending ? Direction.Ascending : Direction.Descending)]
         );
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Total, Is.EqualTo(100));
-            Assert.That(result.Documents.Select(d => d.Id), Is.EqualTo(_documentIds.Values).AsCollection);
+            Assert.That(result.Total, Is.EqualTo(4));
+
+            var expectedDocumentIdsByOrderOfRelevance = new[]
+            {
+                _documentIds[30], // TextsR1
+                _documentIds[20], // TextsR2
+                _documentIds[40], // TextsR3 
+                _documentIds[10]  // Texts
+            };
+            if (ascending)
+            {
+                expectedDocumentIdsByOrderOfRelevance = expectedDocumentIdsByOrderOfRelevance.Reverse().ToArray();
+            }
+            Assert.That(result.Documents.Select(d => d.Id), Is.EqualTo(expectedDocumentIdsByOrderOfRelevance).AsCollection);
         });
     }
 }

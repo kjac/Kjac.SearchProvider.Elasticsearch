@@ -59,6 +59,15 @@ internal sealed class ElasticsearchIndexer : ElasticsearchServiceBase, IElastics
             var allTexts = variationFields
                 .SelectMany(field => field.Value.Texts ?? [])
                 .ToArray();
+            var allTextsR1 = variationFields
+                .SelectMany(field => field.Value.TextsR1 ?? [])
+                .ToArray();
+            var allTextsR2 = variationFields
+                .SelectMany(field => field.Value.TextsR2 ?? [])
+                .ToArray();
+            var allTextsR3 = variationFields
+                .SelectMany(field => field.Value.TextsR3 ?? [])
+                .ToArray();
 
             // explicit document field values
             var fieldValues = variationFields
@@ -67,6 +76,9 @@ internal sealed class ElasticsearchIndexer : ElasticsearchServiceBase, IElastics
                     return new (string FieldName, string Postfix, object[]? Values)[]
                     {
                         (field.FieldName, IndexConstants.FieldTypePostfix.Texts, field.Value.Texts?.OfType<object>().ToArray()),
+                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR1, field.Value.TextsR1?.OfType<object>().ToArray()),
+                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR2, field.Value.TextsR2?.OfType<object>().ToArray()),
+                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR3, field.Value.TextsR3?.OfType<object>().ToArray()),
                         (field.FieldName, IndexConstants.FieldTypePostfix.Integers, field.Value.Integers?.OfType<object>().ToArray()),
                         (field.FieldName, IndexConstants.FieldTypePostfix.Decimals, field.Value.Decimals?.OfType<object>().ToArray()),
                         (field.FieldName, IndexConstants.FieldTypePostfix.DateTimeOffsets, field.Value.DateTimeOffsets?.OfType<object>().ToArray()),
@@ -85,6 +97,9 @@ internal sealed class ElasticsearchIndexer : ElasticsearchServiceBase, IElastics
                 Segment = segment,
                 AccessKeys = accessKeys,
                 AllTexts = allTexts,
+                AllTextsR1 = allTextsR1,
+                AllTextsR2 = allTextsR2,
+                AllTextsR3 = allTextsR3,
                 Fields = fieldValues
             };
         });
@@ -224,6 +239,15 @@ internal sealed class ElasticsearchIndexer : ElasticsearchServiceBase, IElastics
 
         [JsonPropertyName(IndexConstants.FieldNames.AllTexts)]
         public required string[] AllTexts { get; init; }
+
+        [JsonPropertyName(IndexConstants.FieldNames.AllTextsR1)]
+        public required string[] AllTextsR1 { get; init; }
+
+        [JsonPropertyName(IndexConstants.FieldNames.AllTextsR2)]
+        public required string[] AllTextsR2 { get; init; }
+
+        [JsonPropertyName(IndexConstants.FieldNames.AllTextsR3)]
+        public required string[] AllTextsR3 { get; init; }
 
         [JsonPropertyName(IndexConstants.FieldNames.Fields)]
         public required Dictionary<string, object[]> Fields { get; init; }

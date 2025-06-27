@@ -21,6 +21,11 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
+    // TODO: make these configurable via IOptions
+    private const float BoostTextR1 = 6.0f;
+    private const float BoostTextR2 = 4.0f;
+    private const float BoostTextR3 = 2.0f;
+    
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchSearcher> _logger;
     private readonly int _maxFacetValues;
@@ -69,14 +74,17 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             .Terms(new TermsQueryField(accessKeys.Select(key => FieldValue.String(key.ToString("D"))).ToArray())))
         );
 
-        // add full text search filter (bool prefix, AND)
+        // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
         {
             mustFilters.Add(qd => qd
-                .MatchBoolPrefix(mq => mq
-                    .Field(IndexConstants.FieldNames.AllTexts)
-                    .Query(query)
-                    .Operator(Operator.And)
+                .Bool(bd => bd
+                    .Should(
+                        MatchQuery(IndexConstants.FieldNames.AllTexts),
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR1, BoostTextR1),
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR2, BoostTextR2),
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR3, BoostTextR3)
+                    )
                 )
             );
         }
@@ -140,6 +148,15 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         var facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
 
         return new SearchResult(result.Total, keys, facetResult);
+
+        // full text filter uses boolean prefix (AND)
+        Action<QueryDescriptor<SearchResultDocument>> MatchQuery(string fieldName, float boost = 1.0f) =>
+            sd => sd.MatchBoolPrefix(mq => mq
+                .Field(fieldName)
+                .Query(query)
+                .Operator(Operator.And)
+                .Boost(boost)
+            );
     }
 
     private void AddAggregationDescriptor(FluentDictionaryOfStringAggregation<SearchResultDocument> aggs, Facet facet, Filter[] facetFilters)
@@ -417,7 +434,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             DecimalExactFilter or DecimalRangeFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Decimals),
             IntegerExactFilter or IntegerRangeFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Integers),
             KeywordFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
-            TextFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Texts),
             _ => throw new ArgumentOutOfRangeException(nameof(filter), $"Encountered an unsupported filter type: {filter.GetType().Name}")
         };
     
@@ -500,14 +516,22 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     private Action<QueryDescriptor<SearchResultDocument>>[] WildcardFilterQueryDescriptors(TextFilter textFilter)
     {
-        var fieldName = FieldName(textFilter);
-        return textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldName, text)).ToArray();
+        var fieldNameTexts = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.Texts);
+        var fieldNameTextsR1 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR1);
+        var fieldNameTextsR2 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR2);
+        var fieldNameTextsR3 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR3);
+        return textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTexts, text))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, BoostTextR1)))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR2, text, BoostTextR2)))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, BoostTextR3)))
+            .ToArray();
     }
     
-    private Action<QueryDescriptor<SearchResultDocument>> WildcardFilterQueryDescriptor(string fieldName, string text)
+    private Action<QueryDescriptor<SearchResultDocument>> WildcardFilterQueryDescriptor(string fieldName, string text, float boost = 1.0f)
         => ad => ad.Wildcard(wd => wd
             .Field(fieldName)
             .Value($"{text.Replace("*", string.Empty)}*")
+            .Boost(boost)
         );
 
     private Action<QueryDescriptor<SearchResultDocument>> IntegerRangeFilterQueryDescriptor(string fieldName, FilterRange<int?> filterRange)
