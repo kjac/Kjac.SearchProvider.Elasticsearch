@@ -185,7 +185,7 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
     {
         await DeleteIndex();
 
-        await GetRequiredService<IElasticsearchIndexer>().EnsureAsync(IndexAlias);
+        await GetRequiredService<IElasticsearchIndexManager>().EnsureAsync(IndexAlias);
     }
 
     private async Task DeleteIndex()

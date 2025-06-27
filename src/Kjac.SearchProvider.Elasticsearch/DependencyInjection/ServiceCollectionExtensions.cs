@@ -16,7 +16,9 @@ internal static class ServiceCollectionExtensions
         services.AddTransient<IIndexer, ElasticsearchIndexer>();
         services.AddTransient<ISearcher, ElasticsearchSearcher>();
 
+        // register supporting services
         services.AddSingleton<IElasticsearchClientFactory, ElasticsearchClientFactory>();
+        services.AddSingleton<IElasticsearchIndexManager, ElasticsearchIndexManager>();
 
         return services;
     }

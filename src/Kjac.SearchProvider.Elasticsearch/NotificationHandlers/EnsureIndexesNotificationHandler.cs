@@ -10,18 +10,18 @@ namespace Kjac.SearchProvider.Elasticsearch.NotificationHandlers;
 
 internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandler<UmbracoApplicationStartingNotification>
 {
-    private readonly IElasticsearchIndexer _elasticsearchIndexer;
+    private readonly IElasticsearchIndexManager _indexManager;
     private readonly IServiceProvider _serviceProvider;
     private readonly IndexOptions _indexOptions;
 
     public EnsureIndexesNotificationHandler(
-        IElasticsearchIndexer elasticsearchIndexer,
+        IElasticsearchIndexManager indexManager,
         IServiceProvider serviceProvider,
         IOptions<IndexOptions> indexOptions)
     {
+        _indexManager = indexManager;
         _serviceProvider = serviceProvider;
         _indexOptions = indexOptions.Value;
-        _elasticsearchIndexer = elasticsearchIndexer;
     }
 
     public async Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
@@ -37,7 +37,7 @@ internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandl
 
             if (shouldEnsureIndex)
             {
-                await _elasticsearchIndexer.EnsureAsync(indexRegistration.IndexAlias);
+                await _indexManager.EnsureAsync(indexRegistration.IndexAlias);
             }
         }
     }
