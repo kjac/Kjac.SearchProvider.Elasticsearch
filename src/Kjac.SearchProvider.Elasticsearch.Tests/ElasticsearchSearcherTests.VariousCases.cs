@@ -170,6 +170,57 @@ public partial class ElasticsearchSearcherTests
             });
         }
     }
+
+    [Test]
+    public async Task CanCombineFacetsWithFilteringAcrossFields()
+    {
+        var result = await SearchAsync(
+            filters: [new IntegerExactFilter(FieldSingleValue, [1, 10, 25, 50, 100], false)],
+            facets: [
+                new IntegerExactFacet(FieldSingleValue),
+                new KeywordFacet(FieldMultipleValues)
+            ]
+        );
+
+        Assert.That(result.Total, Is.EqualTo(5));
+
+        var facets = result.Facets.ToArray();
+        Assert.That(facets, Has.Length.EqualTo(2));
+        Assert.Multiple(() =>
+        {
+            Assert.That(facets[0].FieldName, Is.EqualTo(FieldSingleValue));
+            Assert.That(facets[1].FieldName, Is.EqualTo(FieldMultipleValues));
+        });
+
+        var integerFacetValues = facets[0].Values.OfType<IntegerExactFacetValue>().ToArray();
+        var keywordFacetValues = facets[1].Values.OfType<KeywordFacetValue>().ToArray();
+        Assert.Multiple(() =>
+        {
+            Assert.That(integerFacetValues, Has.Length.EqualTo(100));
+            Assert.That(keywordFacetValues, Has.Length.EqualTo(8));
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "all")?.Count, Is.EqualTo(5));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "odd")?.Count, Is.EqualTo(2));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "even")?.Count, Is.EqualTo(3));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "single1")?.Count, Is.EqualTo(1));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "single10")?.Count, Is.EqualTo(1));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "single25")?.Count, Is.EqualTo(1));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "single50")?.Count, Is.EqualTo(1));
+            Assert.That(keywordFacetValues.FirstOrDefault(v => v.Key == "single100")?.Count, Is.EqualTo(1));
+        });
+
+        for (var i = 0; i < 100; i++)
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(integerFacetValues[i].Key, Is.EqualTo(i + 1));
+                Assert.That(integerFacetValues[i].Count, Is.EqualTo(1));
+            });
+        }
+    }
     
     [Test]
     public async Task FilteringOneFieldLimitsFacetCountForAnotherField()

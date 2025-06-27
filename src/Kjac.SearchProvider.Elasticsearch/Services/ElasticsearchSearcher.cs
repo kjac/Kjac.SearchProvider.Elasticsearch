@@ -166,7 +166,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         var facetMustFilters = facetFilters.Where(filter => filter.Negate is false).Select(FilterDescriptor).ToArray();
         var facetMustNotFilters = facetFilters.Where(filter => filter.Negate).Select(FilterDescriptor).ToArray();
 
-        aggs.Add(facet.FieldName, ad => ad
+        aggs.Add(FacetName(facet), ad => ad
             .Filter(qd => qd.Bool(bd => bd.Must(facetMustFilters).MustNot(facetMustNotFilters)))
             .Aggregations(a =>
             {
@@ -346,7 +346,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         if (aggregation is FilterAggregate filterAggregate)
         {
-            if(filterAggregate.Aggregations.TryGetValue(facet.FieldName, out aggregation) is false)
+            if(filterAggregate.Aggregations.TryGetValue(FacetName(facet), out aggregation) is false)
             {
                 _logger.LogWarning("Could not find the expected, nested facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
                 return null;
