@@ -9,16 +9,16 @@ internal sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 {
     private readonly ElasticsearchClient _client;
 
-    public ElasticsearchClientFactory(IOptions<ElasticsearchClientOptions> options)
+    public ElasticsearchClientFactory(IOptions<ClientOptions> options)
     {
         var elasticClientOptions = options.Value;
         var settings = new ElasticsearchClientSettings(elasticClientOptions.Host);
-        if (elasticClientOptions.Authentication is not null)
+        if (elasticClientOptions.BasicAuthentication is not null)
         {
             settings.Authentication(
                 new BasicAuthentication(
-                    elasticClientOptions.Authentication.Username,
-                    elasticClientOptions.Authentication.Password
+                    elasticClientOptions.BasicAuthentication.Username,
+                    elasticClientOptions.BasicAuthentication.Password
                 )
             );
         }

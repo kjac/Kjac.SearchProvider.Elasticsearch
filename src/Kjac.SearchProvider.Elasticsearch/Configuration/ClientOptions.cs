@@ -1,12 +1,10 @@
 ﻿namespace Kjac.SearchProvider.Elasticsearch.Configuration;
 
-internal sealed class ElasticsearchClientOptions
+internal sealed class ClientOptions
 {
     public Uri? Host { get; set; }
     
-    public Authentication? Authentication { get; set; }
+    public BasicAuthenticationOptions? BasicAuthentication { get; set; }
 
     public bool EnableDebugMode { get; set; }
-
-    public int MaxFacetValues { get; set; }
 }

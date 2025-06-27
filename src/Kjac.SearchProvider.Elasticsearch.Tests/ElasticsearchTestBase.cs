@@ -18,16 +18,19 @@ public abstract class ElasticsearchTestBase
             .AddElasticsearch()
             .AddLogging();
 
-        serviceCollection.Configure<ElasticsearchClientOptions>(options =>
+        serviceCollection.Configure<ClientOptions>(options =>
         {
             options.Host = new Uri("http://localhost:9200");
             
-            options.Authentication = new()
+            options.BasicAuthentication = new()
             {
                 Username = "elastic",
                 Password = "o7WGEZFC"
             };
+        });
 
+        serviceCollection.Configure<SearcherOptions>(options =>
+        {
             options.MaxFacetValues = 500;
         });
 

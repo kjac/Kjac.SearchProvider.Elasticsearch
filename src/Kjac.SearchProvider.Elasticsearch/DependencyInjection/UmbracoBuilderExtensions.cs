@@ -17,7 +17,7 @@ public static class UmbracoBuilderExtensions
     {
         builder.Services.AddElasticsearch();
 
-        builder.Services.Configure<ElasticsearchClientOptions>(builder.Config.GetSection("ElasticsearchSearchProvider"));
+        builder.Services.Configure<ClientOptions>(builder.Config.GetSection("ElasticsearchSearchProvider:Client"));
 
         builder.Services.Configure<IndexOptions>(options =>
         {

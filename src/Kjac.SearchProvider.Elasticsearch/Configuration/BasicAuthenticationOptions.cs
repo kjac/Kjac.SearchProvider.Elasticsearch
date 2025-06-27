@@ -1,6 +1,6 @@
 namespace Kjac.SearchProvider.Elasticsearch.Configuration;
 
-public record Authentication
+public record BasicAuthenticationOptions
 {
     public required string Username { get; init; }
 

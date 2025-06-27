@@ -21,19 +21,14 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
-    // TODO: make these configurable via IOptions
-    private const float BoostTextR1 = 6.0f;
-    private const float BoostTextR2 = 4.0f;
-    private const float BoostTextR3 = 2.0f;
-    
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchSearcher> _logger;
-    private readonly int _maxFacetValues;
+    private readonly SearcherOptions _searcherOptions;
 
-    public ElasticsearchSearcher(IElasticsearchClientFactory clientFactory, IOptions<ElasticsearchClientOptions> options, ILogger<ElasticsearchSearcher> logger)
+    public ElasticsearchSearcher(IElasticsearchClientFactory clientFactory, IOptions<SearcherOptions> options, ILogger<ElasticsearchSearcher> logger)
     {
         _clientFactory = clientFactory;
-        _maxFacetValues = options.Value.MaxFacetValues;
+        _searcherOptions = options.Value;
         _logger = logger;
     }
 
@@ -81,9 +76,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 .Bool(bd => bd
                     .Should(
                         MatchQuery(IndexConstants.FieldNames.AllTexts),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR1, BoostTextR1),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR2, BoostTextR2),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR3, BoostTextR3)
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR1, _searcherOptions.BoostFactorTextR1),
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR2, _searcherOptions.BoostFactorTextR2),
+                        MatchQuery(IndexConstants.FieldNames.AllTextsR3, _searcherOptions.BoostFactorTextR3)
                     )
                 )
             );
@@ -193,7 +188,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     case DateTimeOffsetExactFacet:
                         aggs.Add(
                             FacetName(facet),
-                            ad => ad.Terms(td => td.Field(FieldName(facet)).Size(_maxFacetValues))
+                            ad => ad.Terms(td => td.Field(FieldName(facet)).Size(_searcherOptions.MaxFacetValues))
                         );
                         break;
                     case IntegerRangeFacet integerRangeFacet:
@@ -521,9 +516,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         var fieldNameTextsR2 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR2);
         var fieldNameTextsR3 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR3);
         return textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTexts, text))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, BoostTextR1)))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR2, text, BoostTextR2)))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, BoostTextR3)))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, _searcherOptions.BoostFactorTextR1)))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR2, text, _searcherOptions.BoostFactorTextR2)))
+            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, _searcherOptions.BoostFactorTextR3)))
             .ToArray();
     }
     
