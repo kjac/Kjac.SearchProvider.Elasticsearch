@@ -14,7 +14,7 @@ public abstract class ElasticsearchTestBase
     [OneTimeSetUp]
     public async Task SetUp()
     {
-        var configuration = new ConfigurationBuilder()
+        IConfigurationRoot configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
             .Build();
 
@@ -23,10 +23,12 @@ public abstract class ElasticsearchTestBase
             .AddElasticsearch(configuration)
             .AddLogging();
 
-        serviceCollection.Configure<SearcherOptions>(options =>
-        {
-            options.MaxFacetValues = 500;
-        });
+        serviceCollection.Configure<SearcherOptions>(
+            options =>
+            {
+                options.MaxFacetValues = 500;
+            }
+        );
 
         serviceCollection.AddSingleton<IServerRoleAccessor, SingleServerRoleAccessor>();
 

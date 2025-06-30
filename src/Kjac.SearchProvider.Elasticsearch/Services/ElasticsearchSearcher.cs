@@ -25,7 +25,10 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
     private readonly ILogger<ElasticsearchSearcher> _logger;
     private readonly SearcherOptions _searcherOptions;
 
-    public ElasticsearchSearcher(IElasticsearchClientFactory clientFactory, IOptions<SearcherOptions> options, ILogger<ElasticsearchSearcher> logger)
+    public ElasticsearchSearcher(
+        IElasticsearchClientFactory clientFactory,
+        IOptions<SearcherOptions> options,
+        ILogger<ElasticsearchSearcher> logger)
     {
         _clientFactory = clientFactory;
         _searcherOptions = options.Value;
@@ -44,7 +47,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         int skip,
         int take)
     {
-        var client = _clientFactory.GetClient();
+        ElasticsearchClient client = _clientFactory.GetClient();
 
         // add variance filters
         var indexCultures = culture is null
@@ -52,85 +55,111 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             : new[] { culture.IndexCulture(), IndexConstants.Variation.InvariantCulture };
         var mustFilters = new List<Action<QueryDescriptor<SearchResultDocument>>>
         {
-            qd => qd.Terms(td => td
-                .Field(IndexConstants.FieldNames.Culture)
-                .Terms(new TermsQueryField(indexCultures.Select(FieldValue.String).ToArray()))),
-            qd => qd.Term(td => td
-                .Field(IndexConstants.FieldNames.Segment)
-                .Value(segment.IndexSegment()))
+            qd => qd.Terms(
+                td => td
+                    .Field(IndexConstants.FieldNames.Culture)
+                    .Terms(new TermsQueryField(indexCultures.Select(FieldValue.String).ToArray()))
+            ),
+            qd => qd.Term(
+                td => td
+                    .Field(IndexConstants.FieldNames.Segment)
+                    .Value(segment.IndexSegment())
+            )
         };
 
         // add protected access filter
-        var accessKeys = accessContext is null
+        Guid[] accessKeys = accessContext is null
             ? [Guid.Empty]
             : new[] { Guid.Empty, accessContext.PrincipalId }.Union(accessContext.GroupIds ?? []).ToArray();
-        mustFilters.Add(qd => qd.Terms(td => td
-            .Field(IndexConstants.FieldNames.AccessKeys)
-            .Terms(new TermsQueryField(accessKeys.Select(key => FieldValue.String(key.ToString("D"))).ToArray())))
+        mustFilters.Add(
+            qd => qd.Terms(
+                td => td
+                    .Field(IndexConstants.FieldNames.AccessKeys)
+                    .Terms(
+                        new TermsQueryField(accessKeys.Select(key => FieldValue.String(key.ToString("D"))).ToArray())
+                    )
+            )
         );
 
         // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
         {
-            mustFilters.Add(qd => qd
-                .Bool(bd => bd
-                    .Should(
-                        MatchQuery(IndexConstants.FieldNames.AllTexts),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR1, _searcherOptions.BoostFactorTextR1),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR2, _searcherOptions.BoostFactorTextR2),
-                        MatchQuery(IndexConstants.FieldNames.AllTextsR3, _searcherOptions.BoostFactorTextR3)
+            mustFilters.Add(
+                qd => qd
+                    .Bool(
+                        bd => bd
+                            .Should(
+                                MatchQuery(IndexConstants.FieldNames.AllTexts),
+                                MatchQuery(IndexConstants.FieldNames.AllTextsR1, _searcherOptions.BoostFactorTextR1),
+                                MatchQuery(IndexConstants.FieldNames.AllTextsR2, _searcherOptions.BoostFactorTextR2),
+                                MatchQuery(IndexConstants.FieldNames.AllTextsR3, _searcherOptions.BoostFactorTextR3)
+                            )
                     )
-                )
             );
         }
 
         // filters needs splitting into two parts; regular filters (not used for faceting) and facet filters
         // - regular filters must be applied before any facets are calculated (they narrow down the potential result set)
         // - facet filters must be applied after facets calculation has begun (additional considerations apply, see comments below)
-        var filtersAsArray = filters as Filter[] ?? filters?.ToArray() ?? [];
-        var facetsAsArray = facets as Facet[] ?? facets?.ToArray() ?? [];
+        Filter[] filtersAsArray = filters as Filter[] ?? filters?.ToArray() ?? [];
+        Facet[] facetsAsArray = facets as Facet[] ?? facets?.ToArray() ?? [];
         var facetFieldNames = facetsAsArray.Select(facet => facet.FieldName).ToArray();
-        var facetFilters = filtersAsArray.Where(f => facetFieldNames.InvariantContains(f.FieldName)).ToArray();
-        var regularFilters = filtersAsArray.Except(facetFilters).ToArray();
+        Filter[] facetFilters = filtersAsArray.Where(f => facetFieldNames.InvariantContains(f.FieldName)).ToArray();
+        Filter[] regularFilters = filtersAsArray.Except(facetFilters).ToArray();
 
         // add regular filters
         mustFilters.AddRange(regularFilters.Where(filter => filter.Negate is false).Select(FilterDescriptor));
-        var mustNotFilters = regularFilters.Where(filter => filter.Negate).Select(FilterDescriptor).ToArray();
+        Action<QueryDescriptor<SearchResultDocument>>[] mustNotFilters = regularFilters
+            .Where(filter => filter.Negate)
+            .Select(FilterDescriptor)
+            .ToArray();
 
         // add post filters for facets
-        var mustPostFilters = facetFilters.Where(filter => filter.Negate is false).Select(FilterDescriptor).ToArray();
-        var mustNotPostFilters = facetFilters.Where(filter => filter.Negate).Select(FilterDescriptor).ToArray();
-        
-        var result = await client.SearchAsync<SearchResultDocument>(sr => sr
-            .Indices(indexAlias.ValidIndexAlias())
-            .From(skip)
-            .Size(take)
-            .Query(qd => qd
-                .Bool(bd => bd
-                    .Must(mustFilters.ToArray())
-                    .MustNot(mustNotFilters)
+        Action<QueryDescriptor<SearchResultDocument>>[] mustPostFilters = facetFilters
+            .Where(filter => filter.Negate is false)
+            .Select(FilterDescriptor)
+            .ToArray();
+        Action<QueryDescriptor<SearchResultDocument>>[] mustNotPostFilters = facetFilters
+            .Where(filter => filter.Negate)
+            .Select(FilterDescriptor)
+            .ToArray();
+
+        SearchResponse<SearchResultDocument> result = await client.SearchAsync<SearchResultDocument>(
+            sr => sr
+                .Indices(indexAlias.ValidIndexAlias())
+                .From(skip)
+                .Size(take)
+                .Query(
+                    qd => qd
+                        .Bool(
+                            bd => bd
+                                .Must(mustFilters.ToArray())
+                                .MustNot(mustNotFilters)
+                        )
                 )
-            )
-            .Aggregations(a =>
-                {
-                    foreach (var facet in facetsAsArray)
+                .Aggregations(
+                    a =>
                     {
-                        AddAggregationDescriptor(a, facet, facetFilters);
+                        foreach (Facet facet in facetsAsArray)
+                        {
+                            AddAggregationDescriptor(a, facet, facetFilters);
+                        }
                     }
-                }
-            )
-            .PostFilter(qd => qd
-                .Bool(bd => bd
-                    .Must(mustPostFilters)
-                    .MustNot(mustNotPostFilters)
                 )
-            )
-            .Sort((sorters ?? [new ScoreSorter(Direction.Descending)]).Select(SortOptionsDescriptor).ToArray())
-            .Source(new SourceConfig(false))
-            .Fields(
-                new FieldAndFormat { Field = IndexConstants.FieldNames.Key },
-                new FieldAndFormat { Field = IndexConstants.FieldNames.ObjectType }
-            )
+                .PostFilter(
+                    qd => qd
+                        .Bool(
+                            bd => bd
+                                .Must(mustPostFilters)
+                                .MustNot(mustNotPostFilters)
+                        )
+                )
+                .Sort((sorters ?? [new ScoreSorter(Direction.Descending)]).Select(SortOptionsDescriptor).ToArray())
+                .Source(new SourceConfig(false))
+                .Fields(
+                    new FieldAndFormat { Field = IndexConstants.FieldNames.Key },
+                    new FieldAndFormat { Field = IndexConstants.FieldNames.ObjectType }
+                )
         );
 
         if (result.IsValidResponse is false)
@@ -139,22 +168,26 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             return new SearchResult(0, [], []);
         }
 
-        var keys = ExtractDocuments(result);
-        var facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
+        Document[] keys = ExtractDocuments(result);
+        IEnumerable<FacetResult> facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
 
         return new SearchResult(result.Total, keys, facetResult);
 
         // full text filter uses boolean prefix (AND)
         Action<QueryDescriptor<SearchResultDocument>> MatchQuery(string fieldName, float boost = 1.0f) =>
-            sd => sd.MatchBoolPrefix(mq => mq
-                .Field(fieldName)
-                .Query(query)
-                .Operator(Operator.And)
-                .Boost(boost)
+            sd => sd.MatchBoolPrefix(
+                mq => mq
+                    .Field(fieldName)
+                    .Query(query)
+                    .Operator(Operator.And)
+                    .Boost(boost)
             );
     }
 
-    private void AddAggregationDescriptor(FluentDictionaryOfStringAggregation<SearchResultDocument> aggs, Facet facet, Filter[] facetFilters)
+    private void AddAggregationDescriptor(
+        FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,
+        Facet facet,
+        Filter[] facetFilters)
     {
         facetFilters = facetFilters.Where(f => f.FieldName != facet.FieldName).ToArray();
         if (facetFilters.Length is 0)
@@ -162,33 +195,43 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             Inner(aggs, facet);
             return;
         }
-                
-        var facetMustFilters = facetFilters.Where(filter => filter.Negate is false).Select(FilterDescriptor).ToArray();
-        var facetMustNotFilters = facetFilters.Where(filter => filter.Negate).Select(FilterDescriptor).ToArray();
 
-        aggs.Add(FacetName(facet), ad => ad
-            .Filter(qd => qd.Bool(bd => bd.Must(facetMustFilters).MustNot(facetMustNotFilters)))
-            .Aggregations(a =>
-            {
-                Inner(a, facet);
-            })
+        Action<QueryDescriptor<SearchResultDocument>>[] facetMustFilters = facetFilters
+            .Where(filter => filter.Negate is false)
+            .Select(FilterDescriptor)
+            .ToArray();
+        Action<QueryDescriptor<SearchResultDocument>>[] facetMustNotFilters = facetFilters
+            .Where(filter => filter.Negate)
+            .Select(FilterDescriptor)
+            .ToArray();
+
+        aggs.Add(
+            FacetName(facet),
+            ad => ad
+                .Filter(qd => qd.Bool(bd => bd.Must(facetMustFilters).MustNot(facetMustNotFilters)))
+                .Aggregations(
+                    a =>
+                    {
+                        Inner(a, facet);
+                    }
+                )
         );
-        
+
         return;
 
-        void Inner(FluentDictionaryOfStringAggregation<SearchResultDocument> aggs, Facet facet)
+        void Inner(FluentDictionaryOfStringAggregation<SearchResultDocument> aggsInner, Facet facetInner)
         {
             try
             {
-                switch (facet)
+                switch (facetInner)
                 {
                     case KeywordFacet:
                     case IntegerExactFacet:
                     case DecimalExactFacet:
                     case DateTimeOffsetExactFacet:
-                        aggs.Add(
-                            FacetName(facet),
-                            ad => ad.Terms(td => td.Field(FieldName(facet)).Size(_searcherOptions.MaxFacetValues))
+                        aggsInner.Add(
+                            FacetName(facetInner),
+                            ad => ad.Terms(td => td.Field(FieldName(facetInner)).Size(_searcherOptions.MaxFacetValues))
                         );
                         break;
                     case IntegerRangeFacet integerRangeFacet:
@@ -201,22 +244,20 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             break;
                         }
 
-                        aggs.Add(
-                            FacetName(facet),
+                        aggsInner.Add(
+                            FacetName(facetInner),
                             ad => ad
-                                .Range(rd => rd
-                                    .Field(FieldName(facet))
-                                    .Ranges(integerRangeFacet.Ranges
-                                        .Select(r =>
-                                            new AggregationRange
-                                            {
-                                                Key = r.Key,
-                                                From = r.Min,
-                                                To = r.Max,
-                                            }
+                                .Range(
+                                    rd => rd
+                                        .Field(FieldName(facetInner))
+                                        .Ranges(
+                                            integerRangeFacet.Ranges
+                                                .Select(
+                                                    r =>
+                                                        new AggregationRange { Key = r.Key, From = r.Min, To = r.Max, }
+                                                )
+                                                .ToArray()
                                         )
-                                        .ToArray()
-                                    )
                                 )
                         );
                         break;
@@ -230,22 +271,29 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             break;
                         }
 
-                        aggs.Add(
-                            FacetName(facet),
+                        aggsInner.Add(
+                            FacetName(facetInner),
                             ad => ad
-                                .Range(rd => rd
-                                    .Field(FieldName(facet))
-                                    .Ranges(decimalRangeFacet.Ranges
-                                        .Select(r =>
-                                            new AggregationRange
-                                            {
-                                                Key = r.Key,
-                                                From = r.Min.HasValue ? Convert.ToDouble(r.Min.Value) : null,
-                                                To = r.Max.HasValue ? Convert.ToDouble(r.Max.Value) : null
-                                            }
+                                .Range(
+                                    rd => rd
+                                        .Field(FieldName(facetInner))
+                                        .Ranges(
+                                            decimalRangeFacet.Ranges
+                                                .Select(
+                                                    r =>
+                                                        new AggregationRange
+                                                        {
+                                                            Key = r.Key,
+                                                            From = r.Min.HasValue
+                                                                ? Convert.ToDouble(r.Min.Value)
+                                                                : null,
+                                                            To = r.Max.HasValue
+                                                                ? Convert.ToDouble(r.Max.Value)
+                                                                : null
+                                                        }
+                                                )
+                                                .ToArray()
                                         )
-                                        .ToArray()
-                                    )
                                 )
                         );
                         break;
@@ -259,27 +307,33 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             break;
                         }
 
-                        aggs.Add(
-                            FacetName(facet),
+                        aggsInner.Add(
+                            FacetName(facetInner),
                             ad => ad
-                                .Range(rd => rd
-                                    .Field(FieldName(facet))
-                                    .Ranges(dateTimeOffsetRangeFacet.Ranges
-                                        .Select(r =>
-                                            new AggregationRange
-                                            {
-                                                Key = r.Key,
-                                                From = r.Min?.ToUnixTimeMilliseconds(),
-                                                To = r.Max?.ToUnixTimeMilliseconds()
-                                            }
+                                .Range(
+                                    rd => rd
+                                        .Field(FieldName(facetInner))
+                                        .Ranges(
+                                            dateTimeOffsetRangeFacet.Ranges
+                                                .Select(
+                                                    r =>
+                                                        new AggregationRange
+                                                        {
+                                                            Key = r.Key,
+                                                            From = r.Min?.ToUnixTimeMilliseconds(),
+                                                            To = r.Max?.ToUnixTimeMilliseconds()
+                                                        }
+                                                )
+                                                .ToArray()
                                         )
-                                        .ToArray()
-                                    )
                                 )
                         );
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException(nameof(facet), $"Encountered an unsupported facet type: {facet.GetType().Name}");
+                        throw new ArgumentOutOfRangeException(
+                            nameof(facetInner),
+                            $"Encountered an unsupported facet type: {facetInner.GetType().Name}"
+                        );
                 }
             }
             catch (ArgumentException ex)
@@ -287,34 +341,44 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 _logger.LogWarning(
                     ex,
                     "An error occurred while attempting to add a facet for field \"{FieldName}\", so it was skipped.",
-                    facet.FieldName
+                    facetInner.FieldName
                 );
             }
         }
     }
 
     private Document[] ExtractDocuments(SearchResponse<SearchResultDocument> searchResult)
-        => searchResult.Hits.Select(hit =>
-            {
-                // hit field values are returned as JsonElement values
-                if (hit.Fields?.TryGetValue(IndexConstants.FieldNames.Key, out var keyValue) is true
-                    && keyValue is JsonElement { ValueKind: JsonValueKind.Array } keyJsonValue
-                    && Guid.TryParse(keyJsonValue.EnumerateArray().FirstOrDefault().GetString(), out var key))
+        => searchResult.Hits.Select(
+                hit =>
                 {
-                    var objectType =
-                        hit.Fields?.TryGetValue(IndexConstants.FieldNames.ObjectType, out var objectTypeValue) is true
-                        && objectTypeValue is JsonElement { ValueKind: JsonValueKind.Array } objectTypeJsonValue
-                        && Enum.TryParse<UmbracoObjectTypes>(
-                            objectTypeJsonValue.EnumerateArray().FirstOrDefault().GetString(), out var parserObjectType)
-                            ? parserObjectType
-                            : UmbracoObjectTypes.Unknown;
+                    // hit field values are returned as JsonElement values
+                    if (hit.Fields?.TryGetValue(IndexConstants.FieldNames.Key, out var keyValue) is true
+                        && keyValue is JsonElement { ValueKind: JsonValueKind.Array } keyJsonValue
+                        && Guid.TryParse(keyJsonValue.EnumerateArray().FirstOrDefault().GetString(), out Guid key))
+                    {
+                        UmbracoObjectTypes objectType =
+                            hit.Fields?.TryGetValue(
+                                IndexConstants.FieldNames.ObjectType,
+                                out var objectTypeValue
+                            ) is true
+                            && objectTypeValue is JsonElement { ValueKind: JsonValueKind.Array } objectTypeJsonValue
+                            && Enum.TryParse(
+                                objectTypeJsonValue.EnumerateArray().FirstOrDefault().GetString(),
+                                out UmbracoObjectTypes parserObjectType
+                            )
+                                ? parserObjectType
+                                : UmbracoObjectTypes.Unknown;
 
-                    return new Document(key, objectType);
+                        return new Document(key, objectType);
+                    }
+
+                    _logger.LogWarning(
+                        "Required document fields were not found in Elasticsearch result hit: {hitId}",
+                        hit.Id
+                    );
+                    return null;
                 }
-
-                _logger.LogWarning("Required document fields were not found in Elasticsearch result hit: {hitId}", hit.Id);
-                return null;
-            })
+            )
             .WhereNotNull()
             .ToArray();
 
@@ -338,37 +402,51 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     private FacetResult? ExtractSingleAggregateFacetResult(Facet facet, AggregateDictionary aggregations)
     {
-        if (aggregations.TryGetValue(FacetName(facet), out var aggregation) is false)
+        if (aggregations.TryGetValue(FacetName(facet), out IAggregate? aggregation) is false)
         {
-            _logger.LogWarning("Could not find any facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
+            _logger.LogWarning(
+                "Could not find any facet aggregation for facet: {facetName}. Facet results might be incorrect.",
+                facet.FieldName
+            );
             return null;
         }
 
         if (aggregation is FilterAggregate filterAggregate)
         {
-            if(filterAggregate.Aggregations.TryGetValue(FacetName(facet), out aggregation) is false)
+            if (filterAggregate.Aggregations?.TryGetValue(FacetName(facet), out aggregation) is not true)
             {
-                _logger.LogWarning("Could not find the expected, nested facet aggregation for facet: {facetName}. Facet results might be incorrect.", facet.FieldName);
+                _logger.LogWarning(
+                    "Could not find the expected, nested facet aggregation for facet: {facetName}. Facet results might be incorrect.",
+                    facet.FieldName
+                );
                 return null;
             }
         }
-        
-        var facetResult = facet switch
+
+        FacetResult? facetResult = facet switch
         {
             KeywordFacet keywordFacet when aggregation is StringTermsAggregate stringTermsAggregate
                 => new FacetResult(
                     keywordFacet.FieldName,
-                    stringTermsAggregate.Buckets.Select(bucket =>
-                        new KeywordFacetValue(bucket.Key.TryGetString(out var key) ? key : "-", bucket.DocCount))),
+                    stringTermsAggregate.Buckets.Select(
+                        bucket => new KeywordFacetValue(
+                            bucket.Key.TryGetString(out var key) ? key : "-",
+                            bucket.DocCount
+                        )
+                    )
+                ),
             IntegerExactFacet integerExactFacet when aggregation is LongTermsAggregate longTermsAggregate
                 => new FacetResult(
                     integerExactFacet.FieldName,
-                    longTermsAggregate.Buckets.Select(bucket =>
-                        new IntegerExactFacetValue(Convert.ToInt32(bucket.Key), bucket.DocCount))),
+                    longTermsAggregate.Buckets.Select(
+                        bucket => new IntegerExactFacetValue(Convert.ToInt32(bucket.Key), bucket.DocCount)
+                    )
+                ),
             IntegerRangeFacet integerRangeFacet when aggregation is RangeAggregate rangeAggregate
                 => new FacetResult(
                     integerRangeFacet.FieldName,
-                    rangeAggregate.Buckets.Select(bucket => new IntegerRangeFacetValue(
+                    rangeAggregate.Buckets.Select(
+                        bucket => new IntegerRangeFacetValue(
                             bucket.Key ?? "n/a",
                             bucket.From.HasValue ? Convert.ToInt32(bucket.From.Value) : null,
                             bucket.To.HasValue ? Convert.ToInt32(bucket.To.Value) : null,
@@ -379,12 +457,15 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             DecimalExactFacet decimalExactFacet when aggregation is DoubleTermsAggregate doubleTermsAggregate
                 => new FacetResult(
                     decimalExactFacet.FieldName,
-                    doubleTermsAggregate.Buckets.Select(bucket =>
-                        new DecimalExactFacetValue(Convert.ToDecimal(bucket.Key), bucket.DocCount))),
+                    doubleTermsAggregate.Buckets.Select(
+                        bucket => new DecimalExactFacetValue(Convert.ToDecimal(bucket.Key), bucket.DocCount)
+                    )
+                ),
             DecimalRangeFacet decimalRangeFacet when aggregation is RangeAggregate rangeAggregate
                 => new FacetResult(
                     decimalRangeFacet.FieldName,
-                    rangeAggregate.Buckets.Select(bucket => new DecimalRangeFacetValue(
+                    rangeAggregate.Buckets.Select(
+                        bucket => new DecimalRangeFacetValue(
                             bucket.Key ?? "n/a",
                             bucket.From.HasValue ? Convert.ToDecimal(bucket.From.Value) : null,
                             bucket.To.HasValue ? Convert.ToDecimal(bucket.To.Value) : null,
@@ -395,28 +476,43 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             DateTimeOffsetExactFacet dateTimeOffsetExactFacet when aggregation is LongTermsAggregate longTermsAggregate
                 => new FacetResult(
                     dateTimeOffsetExactFacet.FieldName,
-                    longTermsAggregate.Buckets.Select(bucket =>
-                        new DateTimeOffsetExactFacetValue(DateTimeOffset.FromUnixTimeMilliseconds(bucket.Key), bucket.DocCount))),
+                    longTermsAggregate.Buckets.Select(
+                        bucket => new DateTimeOffsetExactFacetValue(
+                            DateTimeOffset.FromUnixTimeMilliseconds(bucket.Key),
+                            bucket.DocCount
+                        )
+                    )
+                ),
             DateTimeOffsetRangeFacet dateTimeOffsetRangeFacet when aggregation is RangeAggregate rangeAggregate
                 => new FacetResult(
                     dateTimeOffsetRangeFacet.FieldName,
-                    rangeAggregate.Buckets.Select(bucket => new DateTimeOffsetRangeFacetValue(
+                    rangeAggregate.Buckets.Select(
+                        bucket => new DateTimeOffsetRangeFacetValue(
                             bucket.Key ?? "n/a",
-                            bucket.From.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(bucket.From.Value)) : null,
-                            bucket.To.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(bucket.To.Value)) : null,
+                            bucket.From.HasValue
+                                ? DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(bucket.From.Value))
+                                : null,
+                            bucket.To.HasValue
+                                ? DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(bucket.To.Value))
+                                : null,
                             bucket.DocCount
                         )
                     )
                 ),
             // this happens when querying for a facet that does not exist in the result set
             _ when aggregation is StringTermsAggregate { Buckets.Count: 0 } => null,
-            _ => throw new ArgumentOutOfRangeException(nameof(facet), $"Encountered an unsupported facet type: {facet.GetType().Name}")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(facet),
+                $"Encountered an unsupported facet type: {facet.GetType().Name}"
+            )
         };
 
         if (facetResult is null)
         {
-            _logger.LogWarning("Unable to extract facet results for facet: {facetName}. Possible mismatch between the requested facet type and the indexed facet value. Facet results might be incorrect.", facet.FieldName);
-					 
+            _logger.LogWarning(
+                "Unable to extract facet results for facet: {facetName}. Possible mismatch between the requested facet type and the indexed facet value. Facet results might be incorrect.",
+                facet.FieldName
+            );
         }
 
         return facetResult;
@@ -425,21 +521,45 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
     private string FieldName(Filter filter)
         => filter switch
         {
-            DateTimeOffsetExactFilter or DateTimeOffsetRangeFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.DateTimeOffsets),
-            DecimalExactFilter or DecimalRangeFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Decimals),
-            IntegerExactFilter or IntegerRangeFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Integers),
+            DateTimeOffsetExactFilter or DateTimeOffsetRangeFilter => FieldName(
+                filter.FieldName,
+                IndexConstants.FieldTypePostfix.DateTimeOffsets
+            ),
+            DecimalExactFilter or DecimalRangeFilter => FieldName(
+                filter.FieldName,
+                IndexConstants.FieldTypePostfix.Decimals
+            ),
+            IntegerExactFilter or IntegerRangeFilter => FieldName(
+                filter.FieldName,
+                IndexConstants.FieldTypePostfix.Integers
+            ),
             KeywordFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
-            _ => throw new ArgumentOutOfRangeException(nameof(filter), $"Encountered an unsupported filter type: {filter.GetType().Name}")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(filter),
+                $"Encountered an unsupported filter type: {filter.GetType().Name}"
+            )
         };
-    
+
     private string FieldName(Facet facet)
         => facet switch
         {
-            IntegerExactFacet or IntegerRangeFacet => FieldName(facet.FieldName, IndexConstants.FieldTypePostfix.Integers),
+            IntegerExactFacet or IntegerRangeFacet => FieldName(
+                facet.FieldName,
+                IndexConstants.FieldTypePostfix.Integers
+            ),
             KeywordFacet => FieldName(facet.FieldName, IndexConstants.FieldTypePostfix.Keywords),
-            DecimalExactFacet or DecimalRangeFacet => FieldName(facet.FieldName, IndexConstants.FieldTypePostfix.Decimals),
-            DateTimeOffsetExactFacet or DateTimeOffsetRangeFacet => FieldName(facet.FieldName, IndexConstants.FieldTypePostfix.DateTimeOffsets),
-            _ => throw new ArgumentOutOfRangeException(nameof(facet), $"Encountered an unsupported facet type: {facet.GetType().Name}")
+            DecimalExactFacet or DecimalRangeFacet => FieldName(
+                facet.FieldName,
+                IndexConstants.FieldTypePostfix.Decimals
+            ),
+            DateTimeOffsetExactFacet or DateTimeOffsetRangeFacet => FieldName(
+                facet.FieldName,
+                IndexConstants.FieldTypePostfix.DateTimeOffsets
+            ),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(facet),
+                $"Encountered an unsupported facet type: {facet.GetType().Name}"
+            )
         };
 
     private string FieldName(Sorter sorter)
@@ -449,9 +569,12 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             DecimalSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Decimals),
             IntegerSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Integers),
             KeywordSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
-            // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield 
+            // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
             StringSorter => FieldName(sorter.FieldName, $"{IndexConstants.FieldTypePostfix.Texts}.keyword"),
-            _ => throw new ArgumentOutOfRangeException(nameof(sorter), $"Encountered an unsupported sorter type: {sorter.GetType().Name}")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(sorter),
+                $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
+            )
         };
 
     private string FacetName(Facet facet)
@@ -461,52 +584,77 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         => filter switch
         {
             TextFilter textFilter => qd => qd
-                .Bool(bd => bd.Should(WildcardFilterQueryDescriptors(textFilter))),
+                .Bool(
+                    bd => bd.Should(WildcardFilterQueryDescriptors(textFilter))
+                ),
             KeywordFilter keywordFilter => qd => qd
-                .Terms(td => td
-                    .Field(FieldName(filter))
-                    .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
+                .Terms(
+                    td => td
+                        .Field(FieldName(filter))
+                        .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
                 ),
             IntegerExactFilter integerExactFilter => qd => qd
-                .Terms(td => td
-                    .Field(FieldName(filter))
-                    .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
+                .Terms(
+                    td => td
+                        .Field(FieldName(filter))
+                        .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
                 ),
             IntegerRangeFilter integerRangeFilter => qd => qd
-                .Bool(bd => bd
-                    .Should(integerRangeFilter
-                        .Ranges
-                        .Select(r => IntegerRangeFilterQueryDescriptor(FieldName(filter), r))
-                        .ToArray()
-                    )
+                .Bool(
+                    bd => bd
+                        .Should(
+                            integerRangeFilter
+                                .Ranges
+                                .Select(r => IntegerRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .ToArray()
+                        )
                 ),
             DecimalExactFilter decimalExactFilter => qd => qd
-                .Terms(td => td
-                    .Field(FieldName(filter))
-                    .Terms(new TermsQueryField(decimalExactFilter.Values.Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()))
+                .Terms(
+                    td => td
+                        .Field(FieldName(filter))
+                        .Terms(
+                            new TermsQueryField(
+                                decimalExactFilter.Values
+                                    .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
+                            )
+                        )
                 ),
             DecimalRangeFilter decimalRangeFilter => qd => qd
-                .Bool(bd => bd
-                    .Should(decimalRangeFilter
-                        .Ranges
-                        .Select(r => DecimalRangeFilterQueryDescriptor(FieldName(filter), r))
-                        .ToArray()
-                    )
+                .Bool(
+                    bd => bd
+                        .Should(
+                            decimalRangeFilter
+                                .Ranges
+                                .Select(r => DecimalRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .ToArray()
+                        )
                 ),
             DateTimeOffsetExactFilter dateTimeOffsetExactFilter => qd => qd
-                .Terms(td => td
-                    .Field(FieldName(filter))
-                    .Terms(new TermsQueryField(dateTimeOffsetExactFilter.Values.Select(v => FieldValue.String(v.ToString("O"))).ToArray()))
+                .Terms(
+                    td => td
+                        .Field(FieldName(filter))
+                        .Terms(
+                            new TermsQueryField(
+                                dateTimeOffsetExactFilter.Values
+                                    .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
+                            )
+                        )
                 ),
             DateTimeOffsetRangeFilter dateTimeOffsetRangeFilter => qd => qd
-                .Bool(bd => bd
-                    .Should(dateTimeOffsetRangeFilter
-                        .Ranges
-                        .Select(r => DateTimeOffsetRangeFilterQueryDescriptor(FieldName(filter), r))
-                        .ToArray()
-                    )
+                .Bool(
+                    bd => bd
+                        .Should(
+                            dateTimeOffsetRangeFilter
+                                .Ranges
+                                .Select(r => DateTimeOffsetRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .ToArray()
+                        )
                 ),
-            _ => throw new ArgumentOutOfRangeException(nameof(filter), $"Encountered an unsupported filter type: {filter.GetType().Name}")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(filter),
+                $"Encountered an unsupported filter type: {filter.GetType().Name}"
+            )
         };
 
     private Action<QueryDescriptor<SearchResultDocument>>[] WildcardFilterQueryDescriptors(TextFilter textFilter)
@@ -516,57 +664,92 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         var fieldNameTextsR2 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR2);
         var fieldNameTextsR3 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR3);
         return textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTexts, text))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, _searcherOptions.BoostFactorTextR1)))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR2, text, _searcherOptions.BoostFactorTextR2)))
-            .Union(textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, _searcherOptions.BoostFactorTextR3)))
+            .Union(
+                textFilter.Values.Select(
+                    text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, _searcherOptions.BoostFactorTextR1)
+                )
+            )
+            .Union(
+                textFilter.Values.Select(
+                    text => WildcardFilterQueryDescriptor(fieldNameTextsR2, text, _searcherOptions.BoostFactorTextR2)
+                )
+            )
+            .Union(
+                textFilter.Values.Select(
+                    text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, _searcherOptions.BoostFactorTextR3)
+                )
+            )
             .ToArray();
     }
-    
-    private Action<QueryDescriptor<SearchResultDocument>> WildcardFilterQueryDescriptor(string fieldName, string text, float boost = 1.0f)
-        => ad => ad.Wildcard(wd => wd
-            .Field(fieldName)
-            .Value($"{text.Replace("*", string.Empty)}*")
-            .Boost(boost)
+
+    private Action<QueryDescriptor<SearchResultDocument>> WildcardFilterQueryDescriptor(
+        string fieldName,
+        string text,
+        float boost = 1.0f)
+        => ad => ad.Wildcard(
+            wd => wd
+                .Field(fieldName)
+                .Value($"{text.Replace("*", string.Empty)}*")
+                .Boost(boost)
         );
 
-    private Action<QueryDescriptor<SearchResultDocument>> IntegerRangeFilterQueryDescriptor(string fieldName, FilterRange<int?> filterRange)
-        => ad => ad.Range(rd => rd
-            .NumberRange(nr => nr
-                .Field(fieldName)
-                .Gte(filterRange.MinimumValue ?? int.MinValue)
-                // TODO: is this correct? verify range in/exclusion with search abstractions
-                .Lt(filterRange.MaximumValue ?? int.MaxValue)
-            )
+    private Action<QueryDescriptor<SearchResultDocument>> IntegerRangeFilterQueryDescriptor(
+        string fieldName,
+        FilterRange<int?> filterRange)
+        => ad => ad.Range(
+            rd => rd
+                .Number(
+                    nr => nr
+                        .Field(fieldName)
+                        .Gte(filterRange.MinimumValue ?? int.MinValue)
+                        // TODO: is this correct? verify range in/exclusion with search abstractions
+                        .Lt(filterRange.MaximumValue ?? int.MaxValue)
+                )
         );
 
-    private Action<QueryDescriptor<SearchResultDocument>> DecimalRangeFilterQueryDescriptor(string fieldName, FilterRange<decimal?> filterRange)
-        => ad => ad.Range(rd => rd
-            .NumberRange(nr => nr
-                .Field(fieldName)
-                .Gte(filterRange.MinimumValue.HasValue ? Convert.ToDouble(filterRange.MinimumValue.Value) : double.MinValue)
-                // TODO: is this correct? verify range in/exclusion with search abstractions
-                .Lt(filterRange.MaximumValue.HasValue ? Convert.ToDouble(filterRange.MaximumValue.Value) : double.MaxValue)
-            )
+    private Action<QueryDescriptor<SearchResultDocument>> DecimalRangeFilterQueryDescriptor(
+        string fieldName,
+        FilterRange<decimal?> filterRange)
+        => ad => ad.Range(
+            rd => rd
+                .Number(
+                    nr => nr
+                        .Field(fieldName)
+                        .Gte(
+                            filterRange.MinimumValue.HasValue
+                                ? Convert.ToDouble(filterRange.MinimumValue.Value)
+                                : double.MinValue
+                        )
+                        // TODO: is this correct? verify range in/exclusion with search abstractions
+                        .Lt(
+                            filterRange.MaximumValue.HasValue
+                                ? Convert.ToDouble(filterRange.MaximumValue.Value)
+                                : double.MaxValue
+                        )
+                )
         );
 
-    private Action<QueryDescriptor<SearchResultDocument>> DateTimeOffsetRangeFilterQueryDescriptor(string fieldName, FilterRange<DateTimeOffset?> filterRange)
-        => ad => ad.Range(rd => rd
-            .Date(nr => nr
-                .Field(fieldName)
-                .Gte((filterRange.MinimumValue ?? DateTimeOffset.MinValue).DateTime)
-                // TODO: is this correct? verify range in/exclusion with search abstractions
-                .Lt((filterRange.MaximumValue ?? DateTimeOffset.MaxValue).DateTime)
-            )
+    private Action<QueryDescriptor<SearchResultDocument>> DateTimeOffsetRangeFilterQueryDescriptor(
+        string fieldName,
+        FilterRange<DateTimeOffset?> filterRange)
+        => ad => ad.Range(
+            rd => rd
+                .Date(
+                    nr => nr
+                        .Field(fieldName)
+                        .Gte((filterRange.MinimumValue ?? DateTimeOffset.MinValue).DateTime)
+                        // TODO: is this correct? verify range in/exclusion with search abstractions
+                        .Lt((filterRange.MaximumValue ?? DateTimeOffset.MaxValue).DateTime)
+                )
         );
 
     private Action<SortOptionsDescriptor<SearchResultDocument>> SortOptionsDescriptor(Sorter sorter)
         => sorter switch
         {
             ScoreSorter => sd => sd
-                .Score(new ScoreSort
-                {
-                    Order = sorter.Direction is Direction.Ascending ? SortOrder.Asc : SortOrder.Desc
-                }),
+                .Score(
+                    new ScoreSort { Order = sorter.Direction is Direction.Ascending ? SortOrder.Asc : SortOrder.Desc }
+                ),
             _ => sd => sd
                 .Field(
                     FieldName(sorter),
@@ -579,9 +762,13 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                 IntegerSorter => FieldSortNumericType.Long,
                                 DecimalSorter => FieldSortNumericType.Double,
                                 DateTimeOffsetSorter => FieldSortNumericType.Date,
-                                _ => throw new ArgumentOutOfRangeException(nameof(sorter), $"Encountered an unsupported sorter type: {sorter.GetType().Name}")
+                                _ => throw new ArgumentOutOfRangeException(
+                                    nameof(sorter),
+                                    $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
+                                )
                             }
-                        )) 
+                        )
+                )
         };
 
     // NOTE: the Elasticsearch client is strongly typed, but since we don't care about indexed data, we won't be returning any;

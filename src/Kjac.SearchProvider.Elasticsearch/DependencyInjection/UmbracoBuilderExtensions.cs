@@ -16,18 +16,32 @@ public static class UmbracoBuilderExtensions
     {
         builder.Services.AddElasticsearch(builder.Config);
 
-        builder.Services.Configure<IndexOptions>(options =>
-        {
-            // register Elasticsearch indexes for draft and published content
-            options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(CoreConstants.IndexAliases.DraftContent, UmbracoObjectTypes.Document);
-            options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IPublishedContentChangeStrategy>(CoreConstants.IndexAliases.PublishedContent, UmbracoObjectTypes.Document);
+        builder.Services.Configure<IndexOptions>(
+            options =>
+            {
+                // register Elasticsearch indexes for draft and published content
+                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                    CoreConstants.IndexAliases.DraftContent,
+                    UmbracoObjectTypes.Document
+                );
+                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IPublishedContentChangeStrategy>(
+                    CoreConstants.IndexAliases.PublishedContent,
+                    UmbracoObjectTypes.Document
+                );
 
-            // register Elasticsearch index for media
-            options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(CoreConstants.IndexAliases.DraftMedia, UmbracoObjectTypes.Media);
+                // register Elasticsearch index for media
+                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                    CoreConstants.IndexAliases.DraftMedia,
+                    UmbracoObjectTypes.Media
+                );
 
-            // register Elasticsearch index for members
-            options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(CoreConstants.IndexAliases.DraftMembers, UmbracoObjectTypes.Member);
-        });
+                // register Elasticsearch index for members
+                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                    CoreConstants.IndexAliases.DraftMembers,
+                    UmbracoObjectTypes.Member
+                );
+            }
+        );
 
         // ensure all indexes exist before Umbraco has finished start-up
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, EnsureIndexesNotificationHandler>();

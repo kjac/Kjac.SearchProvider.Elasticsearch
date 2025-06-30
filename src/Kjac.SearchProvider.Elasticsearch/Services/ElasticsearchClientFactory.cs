@@ -12,7 +12,7 @@ internal sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 
     public ElasticsearchClientFactory(IOptions<ClientOptions> options)
     {
-        var elasticClientOptions = options.Value;
+        ClientOptions elasticClientOptions = options.Value;
         var settings = new ElasticsearchClientSettings(elasticClientOptions.Host);
         if (elasticClientOptions.Authentication?.ApiKey is not null)
         {

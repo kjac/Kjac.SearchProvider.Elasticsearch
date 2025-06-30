@@ -4,11 +4,13 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Search.Core.Services;
 using Kjac.SearchProvider.Elasticsearch.Services;
+using Umbraco.Cms.Search.Core.Models.Configuration;
 using IndexOptions = Umbraco.Cms.Search.Core.Configuration.IndexOptions;
 
 namespace Kjac.SearchProvider.Elasticsearch.NotificationHandlers;
 
-internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandler<UmbracoApplicationStartingNotification>
+internal sealed class EnsureIndexesNotificationHandler
+    : INotificationAsyncHandler<UmbracoApplicationStartingNotification>
 {
     private readonly IElasticsearchIndexManager _indexManager;
     private readonly IServiceProvider _serviceProvider;
@@ -24,16 +26,19 @@ internal sealed class EnsureIndexesNotificationHandler : INotificationAsyncHandl
         _indexOptions = indexOptions.Value;
     }
 
-    public async Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
+    public async Task HandleAsync(
+        UmbracoApplicationStartingNotification notification,
+        CancellationToken cancellationToken)
     {
-        var implicitIndexServiceType = typeof(IIndexer);
-        var defaultIndexServiceType = _serviceProvider.GetRequiredService<IIndexer>().GetType();
-        var elasticIndexServiceType = typeof(IElasticsearchIndexer);
+        Type implicitIndexServiceType = typeof(IIndexer);
+        Type defaultIndexServiceType = _serviceProvider.GetRequiredService<IIndexer>().GetType();
+        Type elasticIndexServiceType = typeof(IElasticsearchIndexer);
 
-        foreach (var indexRegistration in _indexOptions.GetIndexRegistrations())
+        foreach (IndexRegistration indexRegistration in _indexOptions.GetIndexRegistrations())
         {
             var shouldEnsureIndex = indexRegistration.Indexer == elasticIndexServiceType
-                || (indexRegistration.Indexer == implicitIndexServiceType && defaultIndexServiceType == elasticIndexServiceType);
+                                    || (indexRegistration.Indexer == implicitIndexServiceType &&
+                                        defaultIndexServiceType == elasticIndexServiceType);
 
             if (shouldEnsureIndex)
             {

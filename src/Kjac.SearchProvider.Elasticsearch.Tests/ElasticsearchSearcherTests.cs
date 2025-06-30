@@ -16,15 +16,15 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
     private const string FieldSingleValue = "FieldTwo";
     private const string FieldMultiSorting = "FieldThree";
     private const string FieldTextRelevance = "FieldFour";
-    
+
     private readonly Dictionary<int, Guid> _documentIds = [];
-    
+
     protected override async Task PerformOneTimeSetUpAsync()
     {
         await EnsureIndex();
 
-        var indexer = GetRequiredService<IElasticsearchIndexer>();
-        
+        IElasticsearchIndexer indexer = GetRequiredService<IElasticsearchIndexer>();
+
         for (var i = 1; i <= 100; i++)
         {
             var id = Guid.NewGuid();
@@ -44,12 +44,10 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                 [
                     new IndexField(
                         Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds,
-                        new IndexValue
-                        {
-                            Keywords = [id.AsKeyword()],
-                        },
+                        new IndexValue { Keywords = [id.AsKeyword()], },
                         Culture: null,
-                        Segment: null),
+                        Segment: null
+                    ),
                     new IndexField(
                         FieldMultipleValues,
                         new IndexValue
@@ -57,7 +55,8 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             Decimals = [i, i * 1.5m, i * -1m, i * -1.5m],
                             Integers = [i, i * 10, i * -1, i * -10],
                             Keywords = ["all", i % 2 == 0 ? "even" : "odd", $"single{i}"],
-                            DateTimeOffsets = [
+                            DateTimeOffsets =
+                            [
                                 Date(2025, 01, 01),
                                 StartDate().AddDays(i),
                                 StartDate().AddDays(i * 2)
@@ -65,7 +64,8 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             Texts = ["all", i % 2 == 0 ? "even" : "odd", $"single{i}", $"phrase search single{i}"]
                         },
                         Culture: null,
-                        Segment: null),
+                        Segment: null
+                    ),
                     new IndexField(
                         FieldSingleValue,
                         new IndexValue
@@ -77,7 +77,8 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             Texts = [$"single{i}"]
                         },
                         Culture: null,
-                        Segment: null),
+                        Segment: null
+                    ),
                     new IndexField(
                         FieldMultiSorting,
                         new IndexValue
@@ -88,18 +89,20 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             DateTimeOffsets = [i % 2 == 0 ? StartDate().AddDays(1) : StartDate().AddDays(2)]
                         },
                         Culture: null,
-                        Segment: null),
+                        Segment: null
+                    ),
                     new IndexField(
                         FieldTextRelevance,
                         new IndexValue
                         {
-                            Texts = [$"texts_{i}", i == 10 ? "special" : "common" ],
+                            Texts = [$"texts_{i}", i == 10 ? "special" : "common"],
                             TextsR1 = [$"texts_r1_{i}", i == 30 ? "special" : "common"],
                             TextsR2 = [$"texts_r2_{i}", i == 20 ? "special" : "common"],
                             TextsR3 = [$"texts_r3_{i}", i == 40 ? "special" : "common"]
                         },
                         Culture: null,
-                        Segment: null),
+                        Segment: null
+                    ),
                 ],
                 null
             );
@@ -123,8 +126,19 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
         int skip = 0,
         int take = 100)
     {
-        var searcher = GetRequiredService<IElasticsearchSearcher>();
-        var result = await searcher.SearchAsync(IndexAlias, query, filters, facets, sorters, culture, segment, accessContext, skip, take);
+        IElasticsearchSearcher searcher = GetRequiredService<IElasticsearchSearcher>();
+        SearchResult result = await searcher.SearchAsync(
+            IndexAlias,
+            query,
+            filters,
+            facets,
+            sorters,
+            culture,
+            segment,
+            accessContext,
+            skip,
+            take
+        );
 
         Assert.That(result, Is.Not.Null);
         return result;
@@ -138,15 +152,13 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
     }
 
     private async Task DeleteIndex()
-    {
-        await GetRequiredService<IElasticsearchIndexer>().ResetAsync(IndexAlias);
-    }
+        => await GetRequiredService<IElasticsearchIndexer>().ResetAsync(IndexAlias);
 
     private DateTimeOffset StartDate()
         => Date(2025, 01, 01);
 
     private DateTimeOffset Date(int year, int month, int day, int hour = 0, int minute = 0, int second = 0)
-        => new (year, month, day, hour, minute, second, TimeSpan.Zero);
+        => new(year, month, day, hour, minute, second, TimeSpan.Zero);
 
     private int[] OddOrEvenIds(bool even)
         => Enumerable

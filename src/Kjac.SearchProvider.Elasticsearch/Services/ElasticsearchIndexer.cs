@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
@@ -9,6 +10,7 @@ using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Extensions;
+using ExistsResponse = Elastic.Clients.Elasticsearch.IndexManagement.ExistsResponse;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
@@ -18,92 +20,148 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchIndexer> _logger;
 
-    public ElasticsearchIndexer(IElasticsearchClientFactory clientFactory, IServerRoleAccessor serverRoleAccessor, ILogger<ElasticsearchIndexer> logger)
+    public ElasticsearchIndexer(
+        IElasticsearchClientFactory clientFactory,
+        IServerRoleAccessor serverRoleAccessor,
+        ILogger<ElasticsearchIndexer> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
         _logger = logger;
     }
 
-    public async Task AddOrUpdateAsync(string indexAlias, Guid id, UmbracoObjectTypes objectType, IEnumerable<Variation> variations, IEnumerable<IndexField> fields, ContentProtection? protection)
+    public async Task AddOrUpdateAsync(
+        string indexAlias,
+        Guid id,
+        UmbracoObjectTypes objectType,
+        IEnumerable<Variation> variations,
+        IEnumerable<IndexField> fields,
+        ContentProtection? protection)
     {
         if (CanManipulateIndexes())
         {
             return;
         }
 
-        var fieldsByFieldName = fields.GroupBy(field => field.FieldName);
-        var documents = variations.Select(variation =>
-        {
-            // document variation
-            var culture = variation.Culture.IndexCulture();
-            var segment = variation.Segment.IndexSegment();
-
-            // document access (no access maps to an empty key for querying)
-            var accessKeys = protection?.AccessIds.Any() is true
-                ? protection.AccessIds.ToArray()
-                : [Guid.Empty];
-
-            // relevant field values for this variation (including invariant fields)
-            var variationFields = fieldsByFieldName.Select(g =>
-                g.FirstOrDefault(f => f.Culture == variation.Culture && f.Segment == variation.Segment)
-                ?? g.FirstOrDefault(f => variation.Culture is not null && f.Culture == variation.Culture && f.Segment is null)
-                ?? g.FirstOrDefault(f => variation.Segment is not null && f.Culture is null && f.Segment == variation.Segment)
-                ?? g.FirstOrDefault(f => f.Culture is null && f.Segment is null)
-            ).WhereNotNull().ToArray();
-
-            // all text fields for "free text query on all fields"
-            var allTexts = variationFields
-                .SelectMany(field => field.Value.Texts ?? [])
-                .ToArray();
-            var allTextsR1 = variationFields
-                .SelectMany(field => field.Value.TextsR1 ?? [])
-                .ToArray();
-            var allTextsR2 = variationFields
-                .SelectMany(field => field.Value.TextsR2 ?? [])
-                .ToArray();
-            var allTextsR3 = variationFields
-                .SelectMany(field => field.Value.TextsR3 ?? [])
-                .ToArray();
-
-            // explicit document field values
-            var fieldValues = variationFields
-                .SelectMany(field =>
-                {
-                    return new (string FieldName, string Postfix, object[]? Values)[]
-                    {
-                        (field.FieldName, IndexConstants.FieldTypePostfix.Texts, field.Value.Texts?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR1, field.Value.TextsR1?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR2, field.Value.TextsR2?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.TextsR3, field.Value.TextsR3?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.Integers, field.Value.Integers?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.Decimals, field.Value.Decimals?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.DateTimeOffsets, field.Value.DateTimeOffsets?.OfType<object>().ToArray()),
-                        (field.FieldName, IndexConstants.FieldTypePostfix.Keywords, field.Value.Keywords?.OfType<object>().ToArray())
-                    };
-                })
-                .Where(f => f.Values?.Any() is true)
-                .ToDictionary(f => $"{f.FieldName}{f.Postfix}", f => f.Values!);
-
-            return new IndexDocument
+        IEnumerable<IGrouping<string, IndexField>> fieldsByFieldName = fields.GroupBy(field => field.FieldName);
+        IEnumerable<IndexDocument> documents = variations.Select(
+            variation =>
             {
-                Id = $"{id:D}.{culture}.{segment}",
-                ObjectType = objectType.ToString(),
-                Key = id,
-                Culture = culture,
-                Segment = segment,
-                AccessKeys = accessKeys,
-                AllTexts = allTexts,
-                AllTextsR1 = allTextsR1,
-                AllTextsR2 = allTextsR2,
-                AllTextsR3 = allTextsR3,
-                Fields = fieldValues
-            };
-        });
+                // document variation
+                var culture = variation.Culture.IndexCulture();
+                var segment = variation.Segment.IndexSegment();
 
-        var client = _clientFactory.GetClient();
+                // document access (no access maps to an empty key for querying)
+                Guid[] accessKeys = protection?.AccessIds.Any() is true
+                    ? protection.AccessIds.ToArray()
+                    : [Guid.Empty];
 
-        var response = await client.IndexManyAsync(documents, index: indexAlias.ValidIndexAlias());
+                // relevant field values for this variation (including invariant fields)
+                IndexField[] variationFields = fieldsByFieldName.Select(
+                        g =>
+                            g.FirstOrDefault(
+                                f => f.Culture == variation.Culture && f.Segment == variation.Segment
+                            )
+                            ?? g.FirstOrDefault(f => variation.Culture is not null
+                                                     && f.Culture == variation.Culture
+                                                     && f.Segment is null
+                            )
+                            ?? g.FirstOrDefault(f => variation.Segment is not null
+                                                     && f.Culture is null
+                                                     && f.Segment == variation.Segment
+                            )
+                            ?? g.FirstOrDefault(f => f.Culture is null && f.Segment is null)
+                    )
+                    .WhereNotNull()
+                    .ToArray();
+
+                // all text fields for "free text query on all fields"
+                var allTexts = variationFields
+                    .SelectMany(field => field.Value.Texts ?? [])
+                    .ToArray();
+                var allTextsR1 = variationFields
+                    .SelectMany(field => field.Value.TextsR1 ?? [])
+                    .ToArray();
+                var allTextsR2 = variationFields
+                    .SelectMany(field => field.Value.TextsR2 ?? [])
+                    .ToArray();
+                var allTextsR3 = variationFields
+                    .SelectMany(field => field.Value.TextsR3 ?? [])
+                    .ToArray();
+
+                // explicit document field values
+                var fieldValues = variationFields
+                    .SelectMany(
+                        field =>
+                        {
+                            return new (string FieldName, string Postfix, object[]? Values)[]
+                            {
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.Texts,
+                                    field.Value.Texts?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.TextsR1,
+                                    field.Value.TextsR1?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.TextsR2,
+                                    field.Value.TextsR2?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.TextsR3,
+                                    field.Value.TextsR3?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.Integers,
+                                    field.Value.Integers?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.Decimals,
+                                    field.Value.Decimals?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.DateTimeOffsets,
+                                    field.Value.DateTimeOffsets?.OfType<object>().ToArray()
+                                ),
+                                (
+                                    field.FieldName,
+                                    IndexConstants.FieldTypePostfix.Keywords,
+                                    field.Value.Keywords?.OfType<object>().ToArray()
+                                )
+                            };
+                        }
+                    )
+                    .Where(f => f.Values?.Any() is true)
+                    .ToDictionary(f => $"{f.FieldName}{f.Postfix}", f => f.Values!);
+
+                return new IndexDocument
+                {
+                    Id = $"{id:D}.{culture}.{segment}",
+                    ObjectType = objectType.ToString(),
+                    Key = id,
+                    Culture = culture,
+                    Segment = segment,
+                    AccessKeys = accessKeys,
+                    AllTexts = allTexts,
+                    AllTextsR1 = allTextsR1,
+                    AllTextsR2 = allTextsR2,
+                    AllTextsR3 = allTextsR3,
+                    Fields = fieldValues
+                };
+            }
+        );
+
+        ElasticsearchClient client = _clientFactory.GetClient();
+
+        BulkResponse? response = await client.IndexManyAsync(documents, index: indexAlias.ValidIndexAlias());
         if (response.IsValidResponse is false)
         {
             LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", response);
@@ -117,14 +175,25 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
             return;
         }
 
-        var client = _clientFactory.GetClient();
-        var result = await client.DeleteByQueryAsync<IndexDocument>(dr => dr
-            .Indices(indexAlias.ValidIndexAlias())
-            .Query(qd => qd
-                .Terms(td => td
-                    .Field(FieldName(Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds, IndexConstants.FieldTypePostfix.Keywords))
-                    .Terms(new TermsQueryField(ids.Select(key => FieldValue.String(key.AsKeyword())).ToArray())))
-            )
+        ElasticsearchClient client = _clientFactory.GetClient();
+        DeleteByQueryResponse result = await client.DeleteByQueryAsync<IndexDocument>(
+            dr => dr
+                .Indices(indexAlias.ValidIndexAlias())
+                .Query(
+                    qd => qd
+                        .Terms(
+                            td => td
+                                .Field(
+                                    FieldName(
+                                        Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds,
+                                        IndexConstants.FieldTypePostfix.Keywords
+                                    )
+                                )
+                                .Terms(
+                                    new TermsQueryField(ids.Select(key => FieldValue.String(key.AsKeyword())).ToArray())
+                                )
+                        )
+                )
         );
 
         if (result.IsValidResponse is false)
@@ -140,14 +209,14 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
             return;
         }
 
-        var client = _clientFactory.GetClient();
-        var existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        ElasticsearchClient client = _clientFactory.GetClient();
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
         if (existsResponse.Exists is false)
         {
             return;
         }
 
-        var result = await client.Indices.DeleteAsync(indexAlias);
+        DeleteIndexResponse result = await client.Indices.DeleteAsync(indexAlias);
 
         if (result.IsValidResponse is false)
         {

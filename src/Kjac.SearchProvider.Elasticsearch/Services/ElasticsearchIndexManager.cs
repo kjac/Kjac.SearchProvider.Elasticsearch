@@ -1,9 +1,11 @@
 ﻿using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
 using Kjac.SearchProvider.Elasticsearch.Constants;
 using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Sync;
+using ExistsResponse = Elastic.Clients.Elasticsearch.IndexManagement.ExistsResponse;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
@@ -11,8 +13,11 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
 {
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchIndexManager> _logger;
-    
-    public ElasticsearchIndexManager(IServerRoleAccessor serverRoleAccessor, IElasticsearchClientFactory clientFactory, ILogger<ElasticsearchIndexManager> logger)
+
+    public ElasticsearchIndexManager(
+        IServerRoleAccessor serverRoleAccessor,
+        IElasticsearchClientFactory clientFactory,
+        ILogger<ElasticsearchIndexManager> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
@@ -28,48 +33,44 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
 
         indexAlias = indexAlias.ValidIndexAlias();
 
-        var client = _clientFactory.GetClient();
-        
-        var existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        ElasticsearchClient client = _clientFactory.GetClient();
+
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
         if (existsResponse.Exists)
         {
             return;
         }
 
         _logger.LogInformation("Creating index {indexAlias}...", indexAlias);
-        var createResponse = await client.Indices.CreateAsync(
+        CreateIndexResponse createResponse = await client.Indices.CreateAsync(
             indexAlias,
             cd => cd
-                .Mappings(md => md
-                    .Properties(
-                        new Properties(new Dictionary<PropertyName, IProperty>
-                            {
-                                { IndexConstants.FieldNames.Key, new KeywordProperty() },
-                                { IndexConstants.FieldNames.ObjectType, new KeywordProperty() },
-                                { IndexConstants.FieldNames.Culture, new KeywordProperty() },
-                                { IndexConstants.FieldNames.Segment, new KeywordProperty() },
-                                { IndexConstants.FieldNames.AccessKeys, new KeywordProperty() },
-                            }
-                        ))
-                    .DynamicTemplates([
-                            new KeyValuePair<string, DynamicTemplate>(
-                                "keyword_fields_as_keywords",
-                                new DynamicTemplate
+                .Mappings(
+                    md => md
+                        .Properties(
+                            new Properties(
+                                new Dictionary<PropertyName, IProperty>
                                 {
-                                    Mapping = new KeywordProperty(),
-                                    Match = ["*_keywords"]
-                                }
-                            ),
-                            new KeyValuePair<string, DynamicTemplate>(
-                                "decimal_fields_as_doubles",
-                                new DynamicTemplate
-                                {
-                                    Mapping = new DoubleNumberProperty(),
-                                    Match = ["*_decimals"]
+                                    { IndexConstants.FieldNames.Key, new KeywordProperty() },
+                                    { IndexConstants.FieldNames.ObjectType, new KeywordProperty() },
+                                    { IndexConstants.FieldNames.Culture, new KeywordProperty() },
+                                    { IndexConstants.FieldNames.Segment, new KeywordProperty() },
+                                    { IndexConstants.FieldNames.AccessKeys, new KeywordProperty() },
                                 }
                             )
-                        ]
-                    )
+                        )
+                        .DynamicTemplates(
+                            [
+                                new KeyValuePair<string, DynamicTemplate>(
+                                    "keyword_fields_as_keywords",
+                                    new DynamicTemplate { Mapping = new KeywordProperty(), Match = ["*_keywords"] }
+                                ),
+                                new KeyValuePair<string, DynamicTemplate>(
+                                    "decimal_fields_as_doubles",
+                                    new DynamicTemplate { Mapping = new DoubleNumberProperty(), Match = ["*_decimals"] }
+                                )
+                            ]
+                        )
                 )
         );
 
@@ -79,7 +80,11 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
         }
         else
         {
-            _logger.LogError("Index {indexAlias} could not be created. Debug info from Elastic: {debugInformation}", indexAlias, createResponse.DebugInformation);
+            _logger.LogError(
+                "Index {indexAlias} could not be created. Debug info from Elastic: {debugInformation}",
+                indexAlias,
+                createResponse.DebugInformation
+            );
         }
     }
 }
