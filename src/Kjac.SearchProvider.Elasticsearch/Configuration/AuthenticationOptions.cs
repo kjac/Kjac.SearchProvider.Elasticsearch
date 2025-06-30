@@ -1,10 +1,10 @@
 namespace Kjac.SearchProvider.Elasticsearch.Configuration;
 
-public record AuthenticationOptions
+public sealed class AuthenticationOptions
 {
-    public string? Username { get; init; }
+    public string? Username { get; set; }
 
-    public string? Password { get; init; }
+    public string? Password { get; set; }
 
-    public string? ApiKey { get; init; }
+    public string? ApiKey { get; set; }
 }

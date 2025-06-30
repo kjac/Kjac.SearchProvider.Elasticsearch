@@ -1,6 +1,6 @@
 ﻿namespace Kjac.SearchProvider.Elasticsearch.Configuration;
 
-public class SearcherOptions
+public sealed class SearcherOptions
 {
     public int MaxFacetValues { get; set; } = 100;
 
