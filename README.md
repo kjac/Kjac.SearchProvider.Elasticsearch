@@ -10,7 +10,6 @@ An Elasticsearch 9 engine must be available and running 😛
 
 The package is installed from [NuGet](https://www.nuget.org/packages/Kjac.SearchProvider.Elasticsearch):
 
-```
 ```bash
 dotnet add package Kjac.SearchProvider.Elasticsearch
 ```
