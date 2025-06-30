@@ -70,7 +70,7 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                         FieldSingleValue,
                         new IndexValue
                         {
-                            Decimals = [i],
+                            Decimals = [i * 0.01m],
                             Integers = [i],
                             Keywords = [$"single{i}"],
                             DateTimeOffsets = [StartDate().AddDays(i)],
