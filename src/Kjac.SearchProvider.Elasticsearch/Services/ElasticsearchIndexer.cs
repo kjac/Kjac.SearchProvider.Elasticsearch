@@ -1,6 +1,5 @@
 ﻿using System.Text.Json.Serialization;
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.Mapping;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
@@ -11,7 +10,6 @@ using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Extensions;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
-using IProperty = Elastic.Clients.Elasticsearch.Mapping.IProperty;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 

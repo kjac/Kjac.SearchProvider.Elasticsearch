@@ -24,57 +24,6 @@ partial class ElasticsearchSearcherTests : ElasticsearchTestBase
         await EnsureIndex();
 
         var indexer = GetRequiredService<IElasticsearchIndexer>();
-
-        // TODO: figure out a way to ensure that the fields collection is correctly mapped from the get-go
-        //       - at this time, if the first field collection contains an integer value for Decimals, the
-        //         dynamic mapping will go bonkers when subsequently attempting to add a decimal value.
-        var seedId = Guid.NewGuid();
-        await indexer.AddOrUpdateAsync(
-            IndexAlias,
-            seedId,
-            UmbracoObjectTypes.Unknown,
-            [new Variation(Culture: null, Segment: null)],
-            [
-                new IndexField(
-                    Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds,
-                    new IndexValue
-                    {
-                        Keywords = [seedId.AsKeyword()],
-                    },
-                    Culture: null,
-                    Segment: null),
-                new IndexField(
-                    FieldMultipleValues,
-                    new IndexValue
-                    {
-                        Decimals = [1.1m]
-                    },
-                    Culture: null,
-                    Segment: null),
-                new IndexField(
-                    FieldSingleValue,
-                    new IndexValue
-                    {
-                        Decimals = [1.1m]
-                    },
-                    Culture: null,
-                    Segment: null),
-                new IndexField(
-                    FieldMultiSorting,
-                    new IndexValue
-                    {
-                        Decimals = [1.1m]
-                    },
-                    Culture: null,
-                    Segment: null)
-            ],
-            null
-        );
-        
-        // TODO: figure out why we have a timing issue (indexing clearly, but why?)
-        Thread.Sleep(1000);
-
-        await indexer.DeleteAsync(IndexAlias, [seedId]);
         
         for (var i = 1; i <= 100; i++)
         {

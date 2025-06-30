@@ -57,8 +57,15 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
                                 new DynamicTemplate
                                 {
                                     Mapping = new KeywordProperty(),
-                                    MatchMappingType = ["string"],
                                     Match = ["*_keywords"]
+                                }
+                            ),
+                            new KeyValuePair<string, DynamicTemplate>(
+                                "decimal_fields_as_doubles",
+                                new DynamicTemplate
+                                {
+                                    Mapping = new DoubleNumberProperty(),
+                                    Match = ["*_decimals"]
                                 }
                             )
                         ]
