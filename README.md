@@ -152,21 +152,60 @@ builder.Services.Configure<SearcherOptions>(options =>
 
 ### Client connectivity
 
-TODO: WORDS HERE
+If you need more control over how the underlying Elasticsearch client manages connections to the Elasticsearch engine, you can swap out the [`IElasticsearchClientFactory`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Services/IElasticsearchClientFactory.cs) implementation with a custom one:
 
-[`IElasticsearchClientFactory`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Services/IElasticsearchClientFactory.cs)
+```csharp
+using Kjac.SearchProvider.Elasticsearch.Services;
+using Umbraco.Cms.Core.Composing;
+
+namespace Kjac.SearchProvider.Elasticsearch.Site.DependencyInjection;
+
+public class MyElasticsearchClientFactory : IElasticsearchClientFactory
+{
+    // ...
+}
+
+public class MyClientFactoryComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+        => builder.Services.AddUnique<IElasticsearchClientFactory, MyElasticsearchClientFactory>();
+}
+```
 
 ### Index management
 
-TODO: WORDS HERE
+The required Elasticsearch indexes are created automatically by the search provider.
 
-[`IElasticsearchIndexManager`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Services/IElasticsearchIndexManager.cs)
+To simplify the usage of the search provider, indexes are created using [dynamic template mapping rules](https://www.elastic.co/docs/manage-data/data-store/mapping/dynamic-templates) to ensure that keyword fields automatically become facetable. This, however, comes with a few tradeoffs:
+
+1. Slightly increased indexing time.
+2. Increased consumption of storage.
+
+For most sites, this tradeoff is unlikely to be problematic. However, if you want complete control, you can replace the [`IElasticsearchIndexManager`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Services/IElasticsearchIndexManager.cs) and handle index creation in the way you see fit:
+
+```csharp
+using Kjac.SearchProvider.Elasticsearch.Services;
+using Umbraco.Cms.Core.Composing;
+
+namespace Kjac.SearchProvider.Elasticsearch.Site.DependencyInjection;
+
+public class MyElasticsearchIndexManager : IElasticsearchIndexManager
+{
+    // ...
+}
+
+public class MyClientFactoryComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+        => builder.Services.AddUnique<IElasticsearchIndexManager, MyElasticsearchIndexManager>();
+}
+```
 
 ## Contributing
 
 Yes, please ❤️
 
-When raising an issue, please make sure to include plenty of context and steps to reproduce in the issue description. That saves me from asking you for it 😉 
+When raising an issue, please make sure to include plenty of context and steps to reproduce in the issue description 🥺 
 
 If you're submitting a PR, please:
 
