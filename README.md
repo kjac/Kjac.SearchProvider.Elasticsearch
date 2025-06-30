@@ -176,7 +176,7 @@ public class MyClientFactoryComposer : IComposer
 
 The required Elasticsearch indexes are created automatically by the search provider.
 
-To simplify the usage of the search provider, indexes are created using [dynamic template mapping rules](https://www.elastic.co/docs/manage-data/data-store/mapping/dynamic-templates) to ensure that keyword fields automatically become facetable. This, however, comes with a few tradeoffs:
+To simplify the usage of the search provider, indexes are created using [dynamic template mapping rules](https://www.elastic.co/docs/manage-data/data-store/mapping/dynamic-templates) - among other things to ensure that keyword fields automatically become facetable. This, however, comes with a few tradeoffs:
 
 1. Slightly increased indexing time.
 2. Increased consumption of storage.
@@ -205,7 +205,7 @@ public class MyClientFactoryComposer : IComposer
 
 Yes, please ❤️
 
-When raising an issue, please make sure to include plenty of context and steps to reproduce in the issue description 🥺 
+When raising an issue, please make sure to include plenty of context, steps to reproduce and any other relevant information in the issue description 🥺 
 
 If you're submitting a PR, please:
 
