@@ -4,7 +4,6 @@ using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Search.Core.Configuration;
 using Umbraco.Cms.Search.Core.Services.ContentIndexing;
-using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.NotificationHandlers;
 using Kjac.SearchProvider.Elasticsearch.Services;
 using CoreConstants = Umbraco.Cms.Search.Core.Constants;
@@ -15,9 +14,7 @@ public static class UmbracoBuilderExtensions
 {
     public static IUmbracoBuilder AddElasticsearchSearchProvider(this IUmbracoBuilder builder)
     {
-        builder.Services.AddElasticsearch();
-
-        builder.Services.Configure<ClientOptions>(builder.Config.GetSection("ElasticsearchSearchProvider:Client"));
+        builder.Services.AddElasticsearch(builder.Config);
 
         builder.Services.Configure<IndexOptions>(options =>
         {

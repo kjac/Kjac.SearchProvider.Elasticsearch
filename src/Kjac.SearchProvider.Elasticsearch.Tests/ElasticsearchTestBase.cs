@@ -1,5 +1,6 @@
 ﻿using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Sync;
 
@@ -13,21 +14,14 @@ public abstract class ElasticsearchTestBase
     [OneTimeSetUp]
     public async Task SetUp()
     {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .Build();
+
         var serviceCollection = new ServiceCollection();
         serviceCollection
-            .AddElasticsearch()
+            .AddElasticsearch(configuration)
             .AddLogging();
-
-        serviceCollection.Configure<ClientOptions>(options =>
-        {
-            options.Host = new Uri("http://localhost:9200");
-            
-            options.BasicAuthentication = new()
-            {
-                Username = "elastic",
-                Password = "o7WGEZFC"
-            };
-        });
 
         serviceCollection.Configure<SearcherOptions>(options =>
         {
