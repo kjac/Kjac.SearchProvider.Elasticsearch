@@ -1,6 +1,6 @@
 # Umbraco search provider for Elasticsearch
 
-This repo contains an alternative search provider for [Umbraco search](https://TODO), based on Elasticsearch 9.
+This repo contains an alternative search provider for [Umbraco search](https://TODO), based on [Elasticsearch](https://www.elastic.co/elasticsearch) 9.
 
 ## Prerequisites
 
