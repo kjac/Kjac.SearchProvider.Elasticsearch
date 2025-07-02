@@ -21,8 +21,8 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
     private readonly ILogger<ElasticsearchIndexer> _logger;
 
     public ElasticsearchIndexer(
-        IElasticsearchClientFactory clientFactory,
         IServerRoleAccessor serverRoleAccessor,
+        IElasticsearchClientFactory clientFactory,
         ILogger<ElasticsearchIndexer> logger)
         : base(serverRoleAccessor)
     {
@@ -175,10 +175,12 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
             return;
         }
 
+        var validIndexAlias = indexAlias.ValidIndexAlias();
+
         ElasticsearchClient client = _clientFactory.GetClient();
         DeleteByQueryResponse result = await client.DeleteByQueryAsync<IndexDocument>(
             dr => dr
-                .Indices(indexAlias.ValidIndexAlias())
+                .Indices(validIndexAlias)
                 .Query(
                     qd => qd
                         .Terms(
@@ -209,14 +211,16 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
             return;
         }
 
+        var validIndexAlias = indexAlias.ValidIndexAlias();
+
         ElasticsearchClient client = _clientFactory.GetClient();
-        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(validIndexAlias);
         if (existsResponse.Exists is false)
         {
             return;
         }
 
-        DeleteIndexResponse result = await client.Indices.DeleteAsync(indexAlias);
+        DeleteIndexResponse result = await client.Indices.DeleteAsync(validIndexAlias);
 
         if (result.IsValidResponse is false)
         {

@@ -9,7 +9,7 @@ using Umbraco.Cms.Search.Core.Models.Searching.Sorting;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
-partial class ElasticsearchSearcherTests : ElasticsearchTestBase
+public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
 {
     private const string IndexAlias = "testindex";
     private const string FieldMultipleValues = "FieldOne";
