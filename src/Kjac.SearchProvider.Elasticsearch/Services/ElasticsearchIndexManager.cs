@@ -26,7 +26,7 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
 
     public async Task EnsureAsync(string indexAlias)
     {
-        if (CanManipulateIndexes())
+        if (ShouldNotManipulateIndexes())
         {
             return;
         }

@@ -38,7 +38,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
         IEnumerable<IndexField> fields,
         ContentProtection? protection)
     {
-        if (CanManipulateIndexes())
+        if (ShouldNotManipulateIndexes())
         {
             return;
         }
@@ -170,7 +170,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
     public async Task DeleteAsync(string indexAlias, IEnumerable<Guid> ids)
     {
-        if (CanManipulateIndexes())
+        if (ShouldNotManipulateIndexes())
         {
             return;
         }
@@ -206,7 +206,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
     public async Task ResetAsync(string indexAlias)
     {
-        if (CanManipulateIndexes())
+        if (ShouldNotManipulateIndexes())
         {
             return;
         }

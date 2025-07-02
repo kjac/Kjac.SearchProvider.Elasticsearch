@@ -9,5 +9,5 @@ internal abstract class ElasticsearchIndexManagingServiceBase : ElasticsearchSer
     protected ElasticsearchIndexManagingServiceBase(IServerRoleAccessor serverRoleAccessor)
         => _serverRoleAccessor = serverRoleAccessor;
 
-    protected bool CanManipulateIndexes() => _serverRoleAccessor.CurrentServerRole is ServerRole.Subscriber;
+    protected bool ShouldNotManipulateIndexes() => _serverRoleAccessor.CurrentServerRole is ServerRole.Subscriber;
 }
