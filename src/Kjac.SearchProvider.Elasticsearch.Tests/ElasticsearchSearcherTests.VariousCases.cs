@@ -413,16 +413,13 @@ public partial class ElasticsearchSearcherTests
         Assert.That(result.Total, Is.EqualTo(100));
 
         FacetResult[] facets = result.Facets.ToArray();
-        Assert.That(facets, Has.Length.EqualTo(2));
+        Assert.That(facets, Has.Length.EqualTo(1));
 
-        // the facet results are equal - the last facet (ignored) assumes the values of the first facet
-        foreach (FacetResult facet in facets)
-        {
-            Assert.That(facet.FieldName, Is.EqualTo(FieldSingleValue));
+        FacetResult facet = facets.Single();
+        Assert.That(facet.FieldName, Is.EqualTo(FieldSingleValue));
 
-            IntegerRangeFacetValue[] facetValues = facet.Values.OfType<IntegerRangeFacetValue>().ToArray();
-            Assert.That(facetValues, Has.Length.EqualTo(1));
-            Assert.That(facetValues.First().Count, Is.EqualTo(10));
-        }
+        IntegerRangeFacetValue[] facetValues = facet.Values.OfType<IntegerRangeFacetValue>().ToArray();
+        Assert.That(facetValues, Has.Length.EqualTo(1));
+        Assert.That(facetValues.First().Count, Is.EqualTo(10));
     }
 }

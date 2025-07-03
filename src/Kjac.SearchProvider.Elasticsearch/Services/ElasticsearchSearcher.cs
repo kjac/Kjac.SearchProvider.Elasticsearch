@@ -98,11 +98,16 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             );
         }
 
+        // explicitly ignore duplicate facets
+        Facet[] facetsAsArray = facets as Facet[] ?? facets?
+                .GroupBy(FacetName)
+                .Select(group => group.First())
+                .ToArray()
+            ?? [];
         // filters needs splitting into two parts; regular filters (not used for faceting) and facet filters
         // - regular filters must be applied before any facets are calculated (they narrow down the potential result set)
         // - facet filters must be applied after facets calculation has begun (additional considerations apply, see comments below)
         Filter[] filtersAsArray = filters as Filter[] ?? filters?.ToArray() ?? [];
-        Facet[] facetsAsArray = facets as Facet[] ?? facets?.ToArray() ?? [];
         var facetFieldNames = facetsAsArray.Select(facet => facet.FieldName).ToArray();
         Filter[] facetFilters = filtersAsArray.Where(f => facetFieldNames.InvariantContains(f.FieldName)).ToArray();
         Filter[] regularFilters = filtersAsArray.Except(facetFilters).ToArray();
