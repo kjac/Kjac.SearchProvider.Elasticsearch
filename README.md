@@ -118,7 +118,7 @@ Generally, you should look to Umbraco search for extension points. There are how
 
 TODO: VERIFY DEFAULTS
 
-Umbraco search allows for multiple textual relevance options within a single field. You can change the boost factors of the search provider by configuring the `SearcherOptions`:
+Umbraco search allows for multiple textual relevance options within a single field. You can change the boost factors of the search provider by configuring the [`SearcherOptions`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Configuration/SearcherOptions.cs):
 
 ```csharp
 builder.Services.Configure<SearcherOptions>(options =>
@@ -128,7 +128,7 @@ builder.Services.Configure<SearcherOptions>(options =>
     // boost the second-highest relevance text by a factor 10 (default is 4)
     options.BoostFactorTextR2 = 10f;
     // do not boost the third-highest relevance text at all (default is 2)
-    options.BoostFactorTextR1 = 1f;
+    options.BoostFactorTextR3 = 1f;
 });
 ```
 
