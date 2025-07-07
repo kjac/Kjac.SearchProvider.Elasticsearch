@@ -56,4 +56,12 @@ public abstract class ElasticsearchTestBase
 
     protected T GetRequiredService<T>() where T : notnull
         => _serviceProvider.GetRequiredService<T>();
+
+    protected Task WaitForIndexingOperationsToCompleteAsync()
+    {
+        // TODO: figure out if there is a way to query for ongoing indexing operations.
+        //       this is a temporary fix to handle an indexing issue.
+        Thread.Sleep(1000);
+        return Task.CompletedTask;
+    }
 }

@@ -108,8 +108,7 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
             );
         }
 
-        // TODO: figure out why we have a timing issue (indexing clearly, but why?)
-        Thread.Sleep(1000);
+        await WaitForIndexingOperationsToCompleteAsync();
     }
 
     protected override async Task PerformOneTimeTearDownAsync()
