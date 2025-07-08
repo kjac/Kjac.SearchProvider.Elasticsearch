@@ -80,11 +80,33 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
         }
         else
         {
-            _logger.LogError(
-                "Index {indexAlias} could not be created. Debug info from Elastic: {debugInformation}",
-                indexAlias,
-                createResponse.DebugInformation
-            );
+            LogFailedElasticResponse(_logger, "Index could not be created", indexAlias, createResponse);
         }
+    }
+
+    public async Task ResetAsync(string indexAlias)
+    {
+        if (ShouldNotManipulateIndexes())
+        {
+            return;
+        }
+
+        var validIndexAlias = indexAlias.ValidIndexAlias();
+
+        ElasticsearchClient client = _clientFactory.GetClient();
+
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        if (existsResponse.Exists)
+        {
+            DeleteIndexResponse result = await client.Indices.DeleteAsync(validIndexAlias);
+
+            if (result.IsValidResponse is false)
+            {
+                LogFailedElasticResponse(_logger, indexAlias, "Could not reset the index", result);
+                return;
+            }
+        }
+
+        await EnsureAsync(indexAlias);
     }
 }

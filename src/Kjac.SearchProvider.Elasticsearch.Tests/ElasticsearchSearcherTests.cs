@@ -111,8 +111,8 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
         await WaitForIndexingOperationsToCompleteAsync();
     }
 
-    protected override async Task PerformOneTimeTearDownAsync()
-        => await DeleteIndex();
+    // protected override async Task PerformOneTimeTearDownAsync()
+    //     => await DeleteIndex();
 
     private async Task<SearchResult> SearchAsync(
         string? query = null,

@@ -10,7 +10,6 @@ using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Extensions;
-using ExistsResponse = Elastic.Clients.Elasticsearch.IndexManagement.ExistsResponse;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
@@ -18,15 +17,18 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBase, IElasticsearchIndexer
 {
     private readonly IElasticsearchClientFactory _clientFactory;
+    private readonly IElasticsearchIndexManager _indexManager;
     private readonly ILogger<ElasticsearchIndexer> _logger;
 
     public ElasticsearchIndexer(
         IServerRoleAccessor serverRoleAccessor,
+        IElasticsearchIndexManager indexManager,
         IElasticsearchClientFactory clientFactory,
         ILogger<ElasticsearchIndexer> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
+        _indexManager = indexManager;
         _logger = logger;
     }
 
@@ -161,7 +163,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
         ElasticsearchClient client = _clientFactory.GetClient();
 
-        BulkResponse? response = await client.IndexManyAsync(documents, index: indexAlias.ValidIndexAlias());
+        BulkResponse response = await client.IndexManyAsync(documents, index: indexAlias.ValidIndexAlias());
         if (response.IsValidResponse is false)
         {
             LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", response);
@@ -205,28 +207,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
     }
 
     public async Task ResetAsync(string indexAlias)
-    {
-        if (ShouldNotManipulateIndexes())
-        {
-            return;
-        }
-
-        var validIndexAlias = indexAlias.ValidIndexAlias();
-
-        ElasticsearchClient client = _clientFactory.GetClient();
-        ExistsResponse existsResponse = await client.Indices.ExistsAsync(validIndexAlias);
-        if (existsResponse.Exists is false)
-        {
-            return;
-        }
-
-        DeleteIndexResponse result = await client.Indices.DeleteAsync(validIndexAlias);
-
-        if (result.IsValidResponse is false)
-        {
-            LogFailedElasticResponse(_logger, indexAlias, "Could not reset the index", result);
-        }
-    }
+        => await _indexManager.ResetAsync(indexAlias);
 
     private record IndexDocument
     {

@@ -27,6 +27,18 @@ public class ElasticsearchIndexerTests : ElasticsearchTestBase
         ElasticsearchClient client = GetRequiredService<IElasticsearchClientFactory>().GetClient();
 
         await IndexManager.EnsureAsync(IndexAlias);
+        Dictionary<string, Guid> ids = await CreateIndexStructure();
+
+        SearchResult result = await SearchAsync(
+            filters: [
+                new KeywordFilter(
+                    Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds,
+                    [ids.First().Value.AsKeyword()],
+                    false
+                )
+            ]
+        );
+        Assert.That(result.Total, Is.Not.Zero);
 
         ExistsResponse existsResponse = await client.Indices.ExistsAsync(IndexAlias);
         Assert.That(existsResponse.Exists, Is.True);
@@ -34,7 +46,18 @@ public class ElasticsearchIndexerTests : ElasticsearchTestBase
         await Indexer.ResetAsync(IndexAlias);
 
         existsResponse = await client.Indices.ExistsAsync(IndexAlias);
-        Assert.That(existsResponse.Exists, Is.False);
+        Assert.That(existsResponse.Exists, Is.True);
+
+        result = await SearchAsync(
+            filters: [
+                new KeywordFilter(
+                    Umbraco.Cms.Search.Core.Constants.FieldNames.PathIds,
+                    [ids.First().Value.AsKeyword()],
+                    false
+                )
+            ]
+        );
+        Assert.That(result.Total, Is.Zero);
     }
 
     [Test]
