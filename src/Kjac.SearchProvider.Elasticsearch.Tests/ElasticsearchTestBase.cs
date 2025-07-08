@@ -59,8 +59,8 @@ public abstract class ElasticsearchTestBase
 
     protected Task WaitForIndexingOperationsToCompleteAsync()
     {
-        // TODO: figure out if there is a way to query for ongoing indexing operations.
-        //       this is a temporary fix to handle an indexing issue.
+        // https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter
+        // "Elasticsearch automatically refreshes shards that have changed every index.refresh_interval which defaults to one second"
         Thread.Sleep(1000);
         return Task.CompletedTask;
     }
