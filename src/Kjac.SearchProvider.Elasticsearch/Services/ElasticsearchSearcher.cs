@@ -575,7 +575,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             IntegerSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Integers),
             KeywordSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
             // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
-            StringSorter => FieldName(sorter.FieldName, $"{IndexConstants.FieldTypePostfix.Texts}.keyword"),
+            TextSorter => FieldName(sorter.FieldName, $"{IndexConstants.FieldTypePostfix.Texts}.keyword"),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(sorter),
                 $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
@@ -763,7 +763,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                         .NumericType(
                             sorter switch
                             {
-                                StringSorter or KeywordSorter => null,
+                                TextSorter or KeywordSorter => null,
                                 IntegerSorter => FieldSortNumericType.Long,
                                 DecimalSorter => FieldSortNumericType.Double,
                                 DateTimeOffsetSorter => FieldSortNumericType.Date,

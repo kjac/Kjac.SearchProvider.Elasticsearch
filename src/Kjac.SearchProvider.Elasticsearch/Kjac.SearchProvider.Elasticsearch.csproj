@@ -8,7 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="Elastic.Clients.Elasticsearch" Version="9.0.7" />
-      <PackageReference Include="Umbraco.Cms.Search.Core" Version="0.2.2" />
+      <PackageReference Include="Umbraco.Cms.Search.Core" Version="0.2.3" />
     </ItemGroup>
 
     <ItemGroup>
