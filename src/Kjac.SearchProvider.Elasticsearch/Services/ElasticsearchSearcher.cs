@@ -47,6 +47,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         int skip,
         int take)
     {
+        if (query is null && filters is null && facets is null && sorters is null)
+        {
+            return new SearchResult(0, [], []);
+        }
+
         ElasticsearchClient client = _clientFactory.GetClient();
 
         // add variance filters

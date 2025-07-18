@@ -11,6 +11,13 @@ namespace Kjac.SearchProvider.Elasticsearch.Tests;
 public partial class ElasticsearchSearcherTests
 {
     [Test]
+    public async Task SearchingWithoutParametersYieldsNoResults()
+    {
+        SearchResult result = await SearchAsync();
+        Assert.That(result.Total, Is.Zero);
+    }
+
+    [Test]
     public async Task FilteringWithoutFacetsYieldsNoFacetValues()
     {
         SearchResult result = await SearchAsync(
