@@ -37,15 +37,15 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     public async Task<SearchResult> SearchAsync(
         string indexAlias,
-        string? query,
-        IEnumerable<Filter>? filters,
-        IEnumerable<Facet>? facets,
-        IEnumerable<Sorter>? sorters,
-        string? culture,
-        string? segment,
-        AccessContext? accessContext,
-        int skip,
-        int take)
+        string? query = null,
+        IEnumerable<Filter>? filters = null,
+        IEnumerable<Facet>? facets = null,
+        IEnumerable<Sorter>? sorters = null,
+        string? culture = null,
+        string? segment = null,
+        AccessContext? accessContext = null,
+        int skip = 0,
+        int take = 10)
     {
         if (query is null && filters is null && facets is null && sorters is null)
         {
@@ -711,9 +711,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 .Number(
                     nr => nr
                         .Field(fieldName)
-                        .Gte(filterRange.MinimumValue ?? int.MinValue)
+                        .Gte(filterRange.Min ?? int.MinValue)
                         // TODO: is this correct? verify range in/exclusion with search abstractions
-                        .Lt(filterRange.MaximumValue ?? int.MaxValue)
+                        .Lt(filterRange.Max ?? int.MaxValue)
                 )
         );
 
@@ -726,14 +726,14 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     nr => nr
                         .Field(fieldName)
                         .Gte(
-                            filterRange.MinimumValue.HasValue
-                                ? Convert.ToDouble(filterRange.MinimumValue.Value)
+                            filterRange.Min.HasValue
+                                ? Convert.ToDouble(filterRange.Min.Value)
                                 : double.MinValue
                         )
                         // TODO: is this correct? verify range in/exclusion with search abstractions
                         .Lt(
-                            filterRange.MaximumValue.HasValue
-                                ? Convert.ToDouble(filterRange.MaximumValue.Value)
+                            filterRange.Max.HasValue
+                                ? Convert.ToDouble(filterRange.Max.Value)
                                 : double.MaxValue
                         )
                 )
@@ -747,9 +747,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 .Date(
                     nr => nr
                         .Field(fieldName)
-                        .Gte((filterRange.MinimumValue ?? DateTimeOffset.MinValue).DateTime)
+                        .Gte((filterRange.Min ?? DateTimeOffset.MinValue).DateTime)
                         // TODO: is this correct? verify range in/exclusion with search abstractions
-                        .Lt((filterRange.MaximumValue ?? DateTimeOffset.MaxValue).DateTime)
+                        .Lt((filterRange.Max ?? DateTimeOffset.MaxValue).DateTime)
                 )
         );
 
