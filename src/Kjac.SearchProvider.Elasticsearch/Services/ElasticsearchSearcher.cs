@@ -264,7 +264,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                             integerRangeFacet.Ranges
                                                 .Select(
                                                     r =>
-                                                        new AggregationRange { Key = r.Key, From = r.Min, To = r.Max, }
+                                                        new AggregationRange { Key = r.Key, From = r.MinValue, To = r.MaxValue, }
                                                 )
                                                 .ToArray()
                                         )
@@ -294,11 +294,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                                         new AggregationRange
                                                         {
                                                             Key = r.Key,
-                                                            From = r.Min.HasValue
-                                                                ? Convert.ToDouble(r.Min.Value)
+                                                            From = r.MinValue.HasValue
+                                                                ? Convert.ToDouble(r.MinValue.Value)
                                                                 : null,
-                                                            To = r.Max.HasValue
-                                                                ? Convert.ToDouble(r.Max.Value)
+                                                            To = r.MaxValue.HasValue
+                                                                ? Convert.ToDouble(r.MaxValue.Value)
                                                                 : null
                                                         }
                                                 )
@@ -330,8 +330,8 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                                         new AggregationRange
                                                         {
                                                             Key = r.Key,
-                                                            From = r.Min?.ToUnixTimeMilliseconds(),
-                                                            To = r.Max?.ToUnixTimeMilliseconds()
+                                                            From = r.MinValue?.ToUnixTimeMilliseconds(),
+                                                            To = r.MaxValue?.ToUnixTimeMilliseconds()
                                                         }
                                                 )
                                                 .ToArray()
@@ -705,35 +705,35 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     private Action<QueryDescriptor<SearchResultDocument>> IntegerRangeFilterQueryDescriptor(
         string fieldName,
-        FilterRange<int?> filterRange)
+        IntegerRangeFilterRange filterRange)
         => ad => ad.Range(
             rd => rd
                 .Number(
                     nr => nr
                         .Field(fieldName)
-                        .Gte(filterRange.Min ?? int.MinValue)
+                        .Gte(filterRange.MinValue ?? int.MinValue)
                         // TODO: is this correct? verify range in/exclusion with search abstractions
-                        .Lt(filterRange.Max ?? int.MaxValue)
+                        .Lt(filterRange.MaxValue ?? int.MaxValue)
                 )
         );
 
     private Action<QueryDescriptor<SearchResultDocument>> DecimalRangeFilterQueryDescriptor(
         string fieldName,
-        FilterRange<decimal?> filterRange)
+        DecimalRangeFilterRange filterRange)
         => ad => ad.Range(
             rd => rd
                 .Number(
                     nr => nr
                         .Field(fieldName)
                         .Gte(
-                            filterRange.Min.HasValue
-                                ? Convert.ToDouble(filterRange.Min.Value)
+                            filterRange.MinValue.HasValue
+                                ? Convert.ToDouble(filterRange.MinValue.Value)
                                 : double.MinValue
                         )
                         // TODO: is this correct? verify range in/exclusion with search abstractions
                         .Lt(
-                            filterRange.Max.HasValue
-                                ? Convert.ToDouble(filterRange.Max.Value)
+                            filterRange.MaxValue.HasValue
+                                ? Convert.ToDouble(filterRange.MaxValue.Value)
                                 : double.MaxValue
                         )
                 )
@@ -741,15 +741,15 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     private Action<QueryDescriptor<SearchResultDocument>> DateTimeOffsetRangeFilterQueryDescriptor(
         string fieldName,
-        FilterRange<DateTimeOffset?> filterRange)
+        DateTimeOffsetRangeFilterRange filterRange)
         => ad => ad.Range(
             rd => rd
                 .Date(
                     nr => nr
                         .Field(fieldName)
-                        .Gte((filterRange.Min ?? DateTimeOffset.MinValue).DateTime)
+                        .Gte((filterRange.MinValue ?? DateTimeOffset.MinValue).DateTime)
                         // TODO: is this correct? verify range in/exclusion with search abstractions
-                        .Lt((filterRange.Max ?? DateTimeOffset.MaxValue).DateTime)
+                        .Lt((filterRange.MaxValue ?? DateTimeOffset.MaxValue).DateTime)
                 )
         );
 
