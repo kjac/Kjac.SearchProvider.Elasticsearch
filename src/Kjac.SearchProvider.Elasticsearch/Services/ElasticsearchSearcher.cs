@@ -715,7 +715,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     nr => nr
                         .Field(fieldName)
                         .Gte(filterRange.MinValue ?? int.MinValue)
-                        // TODO: is this correct? verify range in/exclusion with search abstractions
                         .Lt(filterRange.MaxValue ?? int.MaxValue)
                 )
         );
@@ -733,7 +732,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                 ? Convert.ToDouble(filterRange.MinValue.Value)
                                 : double.MinValue
                         )
-                        // TODO: is this correct? verify range in/exclusion with search abstractions
                         .Lt(
                             filterRange.MaxValue.HasValue
                                 ? Convert.ToDouble(filterRange.MaxValue.Value)
@@ -751,7 +749,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     nr => nr
                         .Field(fieldName)
                         .Gte((filterRange.MinValue ?? DateTimeOffset.MinValue).DateTime)
-                        // TODO: is this correct? verify range in/exclusion with search abstractions
                         .Lt((filterRange.MaxValue ?? DateTimeOffset.MaxValue).DateTime)
                 )
         );
