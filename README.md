@@ -110,6 +110,36 @@ builder.Services.Configure<ClientOptions>(options =>
 });
 ```
 
+### Hosting multiple environments on a single Elasticsearch engine
+
+You can use an `Environment` discriminator to host multiple environments on the same Elasticsearch engine. In essence, this creates environment specific indexes by post-fixing the value of `Environment` to each index alias.
+ 
+This is configured either via `appsettings.json`:
+
+```json
+{
+  "ElasticsearchSearchProvider": {
+    "Client": {
+      "Environment": "[your environment alias ('dev', 'test' etc.)]"
+    }
+  }
+}
+```
+
+...or using `IOptions`:
+
+```csharp
+builder.Services.Configure<ClientOptions>(options =>
+{
+    options.Environment = "[your environment alias ('dev', 'test' etc.)]";
+});
+```
+
+> [!IMPORTANT]
+> While environment specific indexes are automatically created and maintained, they are not automatically removed.
+> 
+> If you remove an environment from your setup, you'll manually have to remove all the indexes created for that environment.
+
 ## Extendability
 
 Generally, you should look to Umbraco search for extension points. There are however a few notable extension points in this search provider as well.

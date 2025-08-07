@@ -16,10 +16,10 @@ public class ElasticsearchIndexerTests : ElasticsearchTestBase
     private const string IndexAlias = "someindex";
 
     protected override async Task PerformOneTimeSetUpAsync()
-        => await Indexer.ResetAsync(IndexAlias);
+        => await DeleteIndex(IndexAlias);
 
     protected override async Task PerformOneTimeTearDownAsync()
-        => await Indexer.ResetAsync(IndexAlias);
+        => await DeleteIndex(IndexAlias);
 
     [Test]
     public async Task CanCreateAndResetIndex()

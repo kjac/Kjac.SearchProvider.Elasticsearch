@@ -23,15 +23,18 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 {
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchSearcher> _logger;
+    private readonly IIndexAliasResolver _indexAliasResolver;
     private readonly SearcherOptions _searcherOptions;
 
     public ElasticsearchSearcher(
         IElasticsearchClientFactory clientFactory,
         IOptions<SearcherOptions> options,
+        IIndexAliasResolver indexAliasResolver,
         ILogger<ElasticsearchSearcher> logger)
     {
         _clientFactory = clientFactory;
         _searcherOptions = options.Value;
+        _indexAliasResolver = indexAliasResolver;
         _logger = logger;
     }
 
@@ -136,7 +139,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         SearchResponse<SearchResultDocument> result = await client.SearchAsync<SearchResultDocument>(
             sr => sr
-                .Indices(indexAlias.ValidIndexAlias())
+                .Indices(_indexAliasResolver.Resolve(indexAlias))
                 .From(skip)
                 .Size(take)
                 .Query(

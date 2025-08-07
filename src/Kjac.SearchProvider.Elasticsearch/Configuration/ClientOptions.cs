@@ -7,4 +7,6 @@ public sealed class ClientOptions
     public AuthenticationOptions? Authentication { get; set; }
 
     public bool EnableDebugMode { get; set; }
+
+    public string? Environment { get; set; }
 }

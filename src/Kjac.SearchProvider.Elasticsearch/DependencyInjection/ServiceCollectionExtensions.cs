@@ -21,6 +21,7 @@ internal static class ServiceCollectionExtensions
         // register supporting services
         services.AddSingleton<IElasticsearchClientFactory, ElasticsearchClientFactory>();
         services.AddSingleton<IElasticsearchIndexManager, ElasticsearchIndexManager>();
+        services.AddSingleton<IIndexAliasResolver, IndexAliasResolver>();
 
         services.Configure<ClientOptions>(configuration.GetSection("ElasticsearchSearchProvider:Client"));
 

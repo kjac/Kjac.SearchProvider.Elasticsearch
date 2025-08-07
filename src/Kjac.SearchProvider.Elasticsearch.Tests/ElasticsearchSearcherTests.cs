@@ -112,7 +112,7 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
     }
 
     protected override async Task PerformOneTimeTearDownAsync()
-        => await DeleteIndex();
+        => await DeleteIndex(IndexAlias);
 
     private async Task<SearchResult> SearchAsync(
         string? query = null,
@@ -145,13 +145,10 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
 
     private async Task EnsureIndex()
     {
-        await DeleteIndex();
+        await DeleteIndex(IndexAlias);
 
         await GetRequiredService<IElasticsearchIndexManager>().EnsureAsync(IndexAlias);
     }
-
-    private async Task DeleteIndex()
-        => await GetRequiredService<IElasticsearchIndexer>().ResetAsync(IndexAlias);
 
     private DateTimeOffset StartDate()
         => Date(2025, 01, 01);

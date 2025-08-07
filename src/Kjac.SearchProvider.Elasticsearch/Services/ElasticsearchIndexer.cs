@@ -1,6 +1,5 @@
 ﻿using System.Text.Json.Serialization;
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
@@ -18,17 +17,20 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 {
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly IElasticsearchIndexManager _indexManager;
+    private readonly IIndexAliasResolver _indexAliasResolver;
     private readonly ILogger<ElasticsearchIndexer> _logger;
 
     public ElasticsearchIndexer(
         IServerRoleAccessor serverRoleAccessor,
         IElasticsearchIndexManager indexManager,
         IElasticsearchClientFactory clientFactory,
+        IIndexAliasResolver indexAliasResolver,
         ILogger<ElasticsearchIndexer> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
         _indexManager = indexManager;
+        _indexAliasResolver = indexAliasResolver;
         _logger = logger;
     }
 
@@ -163,7 +165,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
         ElasticsearchClient client = _clientFactory.GetClient();
 
-        BulkResponse response = await client.IndexManyAsync(documents, index: indexAlias.ValidIndexAlias());
+        BulkResponse response = await client.IndexManyAsync(documents, index: _indexAliasResolver.Resolve(indexAlias));
         if (response.IsValidResponse is false)
         {
             LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", response);
@@ -177,12 +179,12 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
             return;
         }
 
-        var validIndexAlias = indexAlias.ValidIndexAlias();
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
 
         ElasticsearchClient client = _clientFactory.GetClient();
         DeleteByQueryResponse result = await client.DeleteByQueryAsync<IndexDocument>(
             dr => dr
-                .Indices(validIndexAlias)
+                .Indices(indexAlias)
                 .Query(
                     qd => qd
                         .Terms(

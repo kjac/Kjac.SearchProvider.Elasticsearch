@@ -1,8 +1,12 @@
-﻿using Kjac.SearchProvider.Elasticsearch.Configuration;
+﻿using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.IndexManagement;
+using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.DependencyInjection;
+using Kjac.SearchProvider.Elasticsearch.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Sync;
+using ExistsResponse = Elastic.Clients.Elasticsearch.IndexManagement.ExistsResponse;
 
 namespace Kjac.SearchProvider.Elasticsearch.Tests;
 
@@ -32,6 +36,8 @@ public abstract class ElasticsearchTestBase
 
         serviceCollection.AddSingleton<IServerRoleAccessor, SingleServerRoleAccessor>();
 
+        PerformAdditionalConfiguration(serviceCollection);
+
         _serviceProvider = serviceCollection.BuildServiceProvider();
 
         await PerformOneTimeSetUpAsync();
@@ -46,6 +52,10 @@ public abstract class ElasticsearchTestBase
         {
             disposableServiceProvider.Dispose();
         }
+    }
+
+    protected virtual void PerformAdditionalConfiguration(ServiceCollection serviceCollection)
+    {
     }
 
     protected virtual Task PerformOneTimeSetUpAsync()
@@ -63,5 +73,17 @@ public abstract class ElasticsearchTestBase
         // "Elasticsearch automatically refreshes shards that have changed every index.refresh_interval which defaults to one second"
         Thread.Sleep(1000);
         return Task.CompletedTask;
+    }
+
+    protected async Task DeleteIndex(string indexAlias)
+    {
+        ElasticsearchClient client = GetRequiredService<IElasticsearchClientFactory>().GetClient();
+
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        if (existsResponse.Exists)
+        {
+            DeleteIndexResponse response = await client.Indices.DeleteAsync(indexAlias);
+            Assert.That(response.IsValidResponse, Is.True);
+        }
     }
 }

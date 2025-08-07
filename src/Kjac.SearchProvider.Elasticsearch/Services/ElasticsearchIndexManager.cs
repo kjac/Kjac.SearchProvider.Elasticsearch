@@ -2,7 +2,6 @@
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
 using Kjac.SearchProvider.Elasticsearch.Constants;
-using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Sync;
 using ExistsResponse = Elastic.Clients.Elasticsearch.IndexManagement.ExistsResponse;
@@ -12,15 +11,18 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServiceBase, IElasticsearchIndexManager
 {
     private readonly IElasticsearchClientFactory _clientFactory;
+    private readonly IIndexAliasResolver _indexAliasResolver;
     private readonly ILogger<ElasticsearchIndexManager> _logger;
 
     public ElasticsearchIndexManager(
         IServerRoleAccessor serverRoleAccessor,
         IElasticsearchClientFactory clientFactory,
+        IIndexAliasResolver indexAliasResolver,
         ILogger<ElasticsearchIndexManager> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
+        _indexAliasResolver = indexAliasResolver;
         _logger = logger;
     }
 
@@ -31,7 +33,7 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
             return;
         }
 
-        indexAlias = indexAlias.ValidIndexAlias();
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
 
         ElasticsearchClient client = _clientFactory.GetClient();
 
@@ -91,14 +93,14 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
             return;
         }
 
-        var validIndexAlias = indexAlias.ValidIndexAlias();
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
 
         ElasticsearchClient client = _clientFactory.GetClient();
 
         ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
         if (existsResponse.Exists)
         {
-            DeleteIndexResponse result = await client.Indices.DeleteAsync(validIndexAlias);
+            DeleteIndexResponse result = await client.Indices.DeleteAsync(indexAlias);
 
             if (result.IsValidResponse is false)
             {
