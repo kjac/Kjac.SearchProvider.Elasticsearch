@@ -128,7 +128,7 @@ public partial class ElasticsearchSearcherTests
 
     [TestCase(true)]
     [TestCase(false)]
-    public async Task CanFilterAllDocumentsByWildcardTextSortedByTextualRelevance(bool ascending)
+    public async Task CanFilterAllDocumentsByWildcardTextSortedByTextualRelevanceScore(bool ascending)
     {
         SearchResult result = await SearchAsync(
             filters: [new TextFilter(FieldTextRelevance, ["spec"], false)],
@@ -173,6 +173,40 @@ public partial class ElasticsearchSearcherTests
             {
                 Assert.That(result.Total, Is.EqualTo(100));
                 Assert.That(result.Documents.First().Id, Is.EqualTo(ascending ? _documentIds[1] : _documentIds[99]));
+            }
+        );
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CanSortDocumentsByTextualRelevance(bool ascending)
+    {
+        SearchResult result = await SearchAsync(
+            filters: [new TextFilter(FieldTextRelevance, ["special"], false)],
+            sorters: [new TextSorter(FieldMultiSorting, ascending ? Direction.Ascending : Direction.Descending)]
+        );
+
+        Assert.That(result.Total, Is.EqualTo(4));
+
+        Assert.Multiple(
+            () =>
+            {
+                Guid[] expectedDocumentIdsByOrderOfRelevance =
+                [
+                    _documentIds[10], // TextsR1 ("sortable_a")
+                    _documentIds[20], // TextsR2 ("sortable_b")
+                    _documentIds[30], // TextsR3 ("sortable_c")
+                    _documentIds[40] // Texts ("sortable_d")
+                ];
+                if (ascending is false)
+                {
+                    expectedDocumentIdsByOrderOfRelevance = expectedDocumentIdsByOrderOfRelevance.Reverse().ToArray();
+                }
+
+                Assert.That(
+                    result.Documents.Select(d => d.Id),
+                    Is.EqualTo(expectedDocumentIdsByOrderOfRelevance).AsCollection
+                );
             }
         );
     }

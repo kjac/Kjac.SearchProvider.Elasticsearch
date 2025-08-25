@@ -86,7 +86,11 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             Decimals = [i % 2 == 0 ? 10m : 20m],
                             Integers = [i % 2 == 0 ? 10 : 20],
                             Keywords = [i % 2 == 0 ? "even" : "odd"],
-                            DateTimeOffsets = [i % 2 == 0 ? StartDate().AddDays(1) : StartDate().AddDays(2)]
+                            DateTimeOffsets = [i % 2 == 0 ? StartDate().AddDays(1) : StartDate().AddDays(2)],
+                            Texts = [i == 40 ? "sortable_d" : "sortable_x"],
+                            TextsR1 = [i == 10 ? "sortable_a" : "sortable_x"],
+                            TextsR2 = [i == 20 ? "sortable_b" : "sortable_x"],
+                            TextsR3 = [i == 30 ? "sortable_c" : "sortable_x"]
                         },
                         Culture: null,
                         Segment: null

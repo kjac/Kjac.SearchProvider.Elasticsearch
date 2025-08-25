@@ -167,7 +167,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                 .MustNot(mustNotPostFilters)
                         )
                 )
-                .Sort((sorters ?? [new ScoreSorter(Direction.Descending)]).Select(SortOptionsDescriptor).ToArray())
+                .Sort((sorters ?? [new ScoreSorter(Direction.Descending)]).SelectMany(SortOptionsDescriptors).ToArray())
                 .Source(new SourceConfig(false))
                 .Fields(
                     new FieldAndFormat { Field = IndexConstants.FieldNames.Key },
@@ -531,7 +531,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         return facetResult;
     }
 
-    private string FieldName(Filter filter)
+    private static string FieldName(Filter filter)
         => filter switch
         {
             DateTimeOffsetExactFilter or DateTimeOffsetRangeFilter => FieldName(
@@ -553,7 +553,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             )
         };
 
-    private string FieldName(Facet facet)
+    private static string FieldName(Facet facet)
         => facet switch
         {
             IntegerExactFacet or IntegerRangeFacet => FieldName(
@@ -575,22 +575,20 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             )
         };
 
-    private string FieldName(Sorter sorter)
+    private static string FieldName(Sorter sorter)
         => sorter switch
         {
             DateTimeOffsetSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.DateTimeOffsets),
             DecimalSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Decimals),
             IntegerSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Integers),
             KeywordSorter => FieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
-            // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
-            TextSorter => FieldName(sorter.FieldName, $"{IndexConstants.FieldTypePostfix.Texts}.keyword"),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(sorter),
                 $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
             )
         };
 
-    private string FacetName(Facet facet)
+    private static string FacetName(Facet facet)
         => $"{facet.FieldName}_{facet.GetType().Name}";
 
     private Action<QueryDescriptor<SearchResultDocument>> FilterDescriptor(Filter filter)
@@ -753,33 +751,66 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 )
         );
 
-    private Action<SortOptionsDescriptor<SearchResultDocument>> SortOptionsDescriptor(Sorter sorter)
-        => sorter switch
+    private IEnumerable<Action<SortOptionsDescriptor<SearchResultDocument>>> SortOptionsDescriptors(Sorter sorter)
+    {
+        SortOrder sortOrder = sorter.Direction is Direction.Ascending ? SortOrder.Asc : SortOrder.Desc;
+        return sorter switch
         {
-            ScoreSorter => sd => sd
-                .Score(
-                    new ScoreSort { Order = sorter.Direction is Direction.Ascending ? SortOrder.Asc : SortOrder.Desc }
-                ),
-            _ => sd => sd
-                .Field(
-                    FieldName(sorter),
-                    fd => fd
-                        .Order(sorter.Direction is Direction.Ascending ? SortOrder.Asc : SortOrder.Desc)
-                        .NumericType(
-                            sorter switch
-                            {
-                                TextSorter or KeywordSorter => null,
-                                IntegerSorter => FieldSortNumericType.Long,
-                                DecimalSorter => FieldSortNumericType.Double,
-                                DateTimeOffsetSorter => FieldSortNumericType.Date,
-                                _ => throw new ArgumentOutOfRangeException(
-                                    nameof(sorter),
-                                    $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
-                                )
-                            }
-                        )
-                )
+            ScoreSorter =>
+            [
+                sd => sd.Score(new ScoreSort { Order = sortOrder })
+            ],
+            TextSorter =>
+            [
+                sd => sd
+                    .Field(
+                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR1),
+                        fd => fd.Order(sortOrder)
+                    ),
+                sd => sd
+                    .Field(
+                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR2),
+                        fd => fd.Order(sortOrder)
+                    ),
+                sd => sd
+                    .Field(
+                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR3),
+                        fd => fd.Order(sortOrder)
+                    ),
+                sd => sd
+                    .Field(
+                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Texts),
+                        fd => fd.Order(sortOrder)
+                    ),
+            ],
+            _ =>
+            [
+                sd => sd
+                    .Field(
+                        FieldName(sorter),
+                        fd => fd
+                            .Order(sortOrder)
+                            .NumericType(
+                                sorter switch
+                                {
+                                    KeywordSorter => null,
+                                    IntegerSorter => FieldSortNumericType.Long,
+                                    DecimalSorter => FieldSortNumericType.Double,
+                                    DateTimeOffsetSorter => FieldSortNumericType.Date,
+                                    _ => throw new ArgumentOutOfRangeException(
+                                        nameof(sorter),
+                                        $"Encountered an unsupported sorter type: {sorter.GetType().Name}"
+                                    )
+                                }
+                            )
+                    )
+            ]
         };
+    }
+
+    private static string TextSorterFieldName(string fieldName, string fieldTypePostfix)
+        // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
+        => FieldName(fieldName, $"{fieldTypePostfix}.keyword");
 
     // NOTE: the Elasticsearch client is strongly typed, but since we don't care about indexed data, we won't be returning any;
     //       we'll use explicit fields extraction to get the document keys from a search result.

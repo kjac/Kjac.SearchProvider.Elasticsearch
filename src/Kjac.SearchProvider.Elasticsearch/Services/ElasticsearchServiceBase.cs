@@ -6,7 +6,7 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal abstract class ElasticsearchServiceBase
 {
-    protected string FieldName(string fieldName, string postfix)
+    protected static string FieldName(string fieldName, string postfix)
         => $"{IndexConstants.FieldNames.Fields}.{fieldName}{postfix}";
 
     protected void LogFailedElasticResponse(
