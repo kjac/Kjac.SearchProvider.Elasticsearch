@@ -98,27 +98,38 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                     .SelectMany(
                         field =>
                         {
+                            // in order to make sorting across all textual relevance fields actually work, the fields
+                            // must exist. since they're created by dynamic field mappings, these must be invoked - and
+                            // this only happens if there is a value.
+                            // in other words: if *any* textual relevance field has a value, *all* of them must have a
+                            // value - if nothing else, a default value.
+                            object[]? defaultTextsValue = field.Value.Texts is not null
+                                                           || field.Value.TextsR1 is not null
+                                                           || field.Value.TextsR2 is not null
+                                                           || field.Value.TextsR3 is not null
+                                ? [""]
+                                : null;
                             return new (string FieldName, string Postfix, object[]? Values)[]
                             {
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.Texts,
-                                    field.Value.Texts?.OfType<object>().ToArray()
+                                    field.Value.Texts?.OfType<object>().ToArray() ?? defaultTextsValue
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR1,
-                                    field.Value.TextsR1?.OfType<object>().ToArray()
+                                    field.Value.TextsR1?.OfType<object>().ToArray() ?? defaultTextsValue
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR2,
-                                    field.Value.TextsR2?.OfType<object>().ToArray()
+                                    field.Value.TextsR2?.OfType<object>().ToArray() ?? defaultTextsValue
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR3,
-                                    field.Value.TextsR3?.OfType<object>().ToArray()
+                                    field.Value.TextsR3?.OfType<object>().ToArray() ?? defaultTextsValue
                                 ),
                                 (
                                     field.FieldName,
