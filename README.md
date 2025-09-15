@@ -1,6 +1,6 @@
 # Umbraco search provider for Elasticsearch
 
-This repo contains an alternative search provider for [Umbraco search](https://TODO), based on [Elasticsearch](https://www.elastic.co/elasticsearch) 9.
+This repo contains an alternative search provider for [Umbraco search](https://github.com/umbraco/Umbraco.Cms.Search/), based on [Elasticsearch](https://www.elastic.co/elasticsearch) 9.
 
 ## Prerequisites
 
@@ -146,8 +146,6 @@ Generally, you should look to Umbraco search for extension points. There are how
 
 ### Tweaking score boosting for textual relevance
 
-TODO: VERIFY DEFAULTS
-
 Umbraco search allows for multiple textual relevance options within a single field. You can change the boost factors of the search provider by configuring the [`SearcherOptions`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Configuration/SearcherOptions.cs):
 
 ```csharp
@@ -163,8 +161,6 @@ builder.Services.Configure<SearcherOptions>(options =>
 ```
 
 ### Allowing for more facet values
-
-TODO: VERIFY DEFAULTS
 
 By default, the search provider allows for a maximum of 100 facet values returned per facet in a search result. You can change that - also using `SearcherOptions`:
 
