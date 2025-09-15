@@ -63,18 +63,40 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                 // relevant field values for this variation (including invariant fields)
                 IndexField[] variationFields = fieldsByFieldName.Select(
                         g =>
-                            g.FirstOrDefault(
-                                f => f.Culture == variation.Culture && f.Segment == variation.Segment
-                            )
-                            ?? g.FirstOrDefault(f => variation.Culture is not null
-                                                     && f.Culture == variation.Culture
-                                                     && f.Segment is null
-                            )
-                            ?? g.FirstOrDefault(f => variation.Segment is not null
-                                                     && f.Culture is null
-                                                     && f.Segment == variation.Segment
-                            )
-                            ?? g.FirstOrDefault(f => f.Culture is null && f.Segment is null)
+                        {
+                            IndexField[] applicableFields = g.Where(f =>
+                                (variation.Culture is not null
+                                 && variation.Segment is not null
+                                 && f.Culture == variation.Culture
+                                 && f.Segment == variation.Segment)
+                                || (variation.Culture is not null
+                                    && f.Culture == variation.Culture
+                                    && f.Segment is null)
+                                || (variation.Segment is not null
+                                    && f.Culture is null
+                                    && f.Segment == variation.Segment)
+                                || (f.Culture is null && f.Segment is null)
+                            ).ToArray();
+
+                            return applicableFields.Any()
+                                ? new IndexField(
+                                    g.Key,
+                                    new IndexValue
+                                    {
+                                        DateTimeOffsets = applicableFields.SelectMany(f => f.Value.DateTimeOffsets ?? []).NullIfEmpty(),
+                                        Decimals = applicableFields.SelectMany(f => f.Value.Decimals ?? []).NullIfEmpty(),
+                                        Integers = applicableFields.SelectMany(f => f.Value.Integers ?? []).NullIfEmpty(),
+                                        Keywords = applicableFields.SelectMany(f => f.Value.Keywords ?? []).NullIfEmpty(),
+                                        Texts = applicableFields.SelectMany(f => f.Value.Texts ?? []).NullIfEmpty(),
+                                        TextsR1 = applicableFields.SelectMany(f => f.Value.TextsR1 ?? []).NullIfEmpty(),
+                                        TextsR2 = applicableFields.SelectMany(f => f.Value.TextsR2 ?? []).NullIfEmpty(),
+                                        TextsR3 = applicableFields.SelectMany(f => f.Value.TextsR3 ?? []).NullIfEmpty(),
+                                    },
+                                    variation.Culture,
+                                    variation.Segment
+                                )
+                                : null;
+                        }
                     )
                     .WhereNotNull()
                     .ToArray();
