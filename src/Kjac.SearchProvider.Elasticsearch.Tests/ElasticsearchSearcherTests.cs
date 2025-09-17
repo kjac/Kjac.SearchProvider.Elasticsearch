@@ -16,6 +16,7 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
     private const string FieldSingleValue = "FieldTwo";
     private const string FieldMultiSorting = "FieldThree";
     private const string FieldTextRelevance = "FieldFour";
+    private const string FieldTextSorting = "FieldFive";
 
     private readonly Dictionary<int, Guid> _documentIds = [];
 
@@ -103,6 +104,18 @@ public partial class ElasticsearchSearcherTests : ElasticsearchTestBase
                             TextsR1 = [$"texts_r1_{i}", i == 30 ? "special" : "common"],
                             TextsR2 = [$"texts_r2_{i}", i == 20 ? "special" : "common"],
                             TextsR3 = [$"texts_r3_{i}", i == 40 ? "special" : "common"]
+                        },
+                        Culture: null,
+                        Segment: null
+                    ),
+                    new IndexField(
+                        FieldTextSorting,
+                        new IndexValue
+                        {
+                            Texts = ["xxx"],
+                            TextsR1 = i == 60 ? ["aaa", "BBB", "ccc"] : null,
+                            TextsR2 = i == 20 ? ["BBB", "ccc"] : null,
+                            TextsR3 = i == 40 ? ["ccc"] : null
                         },
                         Culture: null,
                         Segment: null

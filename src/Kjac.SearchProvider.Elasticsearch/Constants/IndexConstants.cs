@@ -51,5 +51,7 @@ internal static class IndexConstants
         public const string Decimals = "_decimals";
 
         public const string DateTimeOffsets = "_datetimeoffsets";
+
+        public const string Sortable = "_sort";
     }
 }

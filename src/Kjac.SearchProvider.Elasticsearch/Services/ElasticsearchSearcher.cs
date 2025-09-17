@@ -764,24 +764,10 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             [
                 sd => sd
                     .Field(
-                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR1),
+                        // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
+                        FieldName(sorter.FieldName, $"{IndexConstants.FieldTypePostfix.Texts}{IndexConstants.FieldTypePostfix.Sortable}.keyword"),
                         fd => fd.Order(sortOrder)
-                    ),
-                sd => sd
-                    .Field(
-                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR2),
-                        fd => fd.Order(sortOrder)
-                    ),
-                sd => sd
-                    .Field(
-                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.TextsR3),
-                        fd => fd.Order(sortOrder)
-                    ),
-                sd => sd
-                    .Field(
-                        TextSorterFieldName(sorter.FieldName, IndexConstants.FieldTypePostfix.Texts),
-                        fd => fd.Order(sortOrder)
-                    ),
+                    )
             ],
             _ =>
             [
@@ -807,10 +793,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             ]
         };
     }
-
-    private static string TextSorterFieldName(string fieldName, string fieldTypePostfix)
-        // NOTE: we're utilizing that dynamically mapped text fields have a .keyword subfield
-        => FieldName(fieldName, $"{fieldTypePostfix}.keyword");
 
     // NOTE: the Elasticsearch client is strongly typed, but since we don't care about indexed data, we won't be returning any;
     //       we'll use explicit fields extraction to get the document keys from a search result.

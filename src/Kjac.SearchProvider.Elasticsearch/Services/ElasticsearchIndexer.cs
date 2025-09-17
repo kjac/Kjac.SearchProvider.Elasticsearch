@@ -120,38 +120,27 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                     .SelectMany(
                         field =>
                         {
-                            // in order to make sorting across all textual relevance fields actually work, the fields
-                            // must exist. since they're created by dynamic field mappings, these must be invoked - and
-                            // this only happens if there is a value.
-                            // in other words: if *any* textual relevance field has a value, *all* of them must have a
-                            // value - if nothing else, a default value.
-                            object[]? defaultTextsValue = field.Value.Texts is not null
-                                                           || field.Value.TextsR1 is not null
-                                                           || field.Value.TextsR2 is not null
-                                                           || field.Value.TextsR3 is not null
-                                ? [""]
-                                : null;
                             return new (string FieldName, string Postfix, object[]? Values)[]
                             {
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.Texts,
-                                    field.Value.Texts?.OfType<object>().ToArray() ?? defaultTextsValue
+                                    field.Value.Texts?.OfType<object>().ToArray()
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR1,
-                                    field.Value.TextsR1?.OfType<object>().ToArray() ?? defaultTextsValue
+                                    field.Value.TextsR1?.OfType<object>().ToArray()
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR2,
-                                    field.Value.TextsR2?.OfType<object>().ToArray() ?? defaultTextsValue
+                                    field.Value.TextsR2?.OfType<object>().ToArray()
                                 ),
                                 (
                                     field.FieldName,
                                     IndexConstants.FieldTypePostfix.TextsR3,
-                                    field.Value.TextsR3?.OfType<object>().ToArray() ?? defaultTextsValue
+                                    field.Value.TextsR3?.OfType<object>().ToArray()
                                 ),
                                 (
                                     field.FieldName,
@@ -178,6 +167,23 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                     )
                     .Where(f => f.Values?.Any() is true)
                     .ToDictionary(f => $"{f.FieldName}{f.Postfix}", f => f.Values!);
+
+                // add explicit fields for textual sorting across multiple relevance levels of text
+                foreach (IndexField field in variationFields)
+                {
+                    var sortableTexts = (field.Value.TextsR1 ?? [])
+                        .Union(field.Value.TextsR2 ?? [])
+                        .Union(field.Value.TextsR3 ?? [])
+                        .Union(field.Value.Texts ?? [])
+                        .Take(5).ToArray();
+                    if (sortableTexts.Length > 0)
+                    {
+                        fieldValues.Add(
+                            $"{field.FieldName}{IndexConstants.FieldTypePostfix.Texts}{IndexConstants.FieldTypePostfix.Sortable}",
+                            [string.Join(" ", sortableTexts).ToLowerInvariant()]
+                        );
+                    }
+                }
 
                 return new IndexDocument
                 {
