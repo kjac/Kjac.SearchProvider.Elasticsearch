@@ -18,7 +18,7 @@ public partial class ElasticsearchSearcherVarianceTests
             () =>
             {
                 Assert.That(result.Total, Is.EqualTo(1));
-                Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[12]));
+                Assert.That(result.Documents.First().Id, Is.EqualTo(_variantDocumentIds[12]));
             }
         );
     }
@@ -41,6 +41,36 @@ public partial class ElasticsearchSearcherVarianceTests
 
     [TestCase("en-US")]
     [TestCase("da-DK")]
+    public async Task CanQuerySingleInvariantDocumentByInvariantField(string culture)
+    {
+        SearchResult result = await SearchAsync(
+            query: "commoninvariant78",
+            culture: culture
+        );
+
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.Total, Is.EqualTo(1));
+                Assert.That(result.Documents.First().Id, Is.EqualTo(_invariantDocumentIds[78]));
+            }
+        );
+    }
+
+    [TestCase("en-US")]
+    [TestCase("da-DK")]
+    public async Task CanQueryAllInvariantAndVariantDocumentsByInvariantField(string culture)
+    {
+        SearchResult result = await SearchAsync(
+            query: "commoninvariant",
+            culture: culture
+        );
+
+        Assert.That(result.Total, Is.EqualTo(200));
+    }
+
+    [TestCase("en-US")]
+    [TestCase("da-DK")]
     public async Task CanFilterSingleDocumentByInvariantField(string culture)
     {
         SearchResult result = await SearchAsync(
@@ -52,7 +82,7 @@ public partial class ElasticsearchSearcherVarianceTests
             () =>
             {
                 Assert.That(result.Total, Is.EqualTo(1));
-                Assert.That(result.Documents.First().Id, Is.EqualTo(_documentIds[12]));
+                Assert.That(result.Documents.First().Id, Is.EqualTo(_variantDocumentIds[12]));
             }
         );
     }
@@ -67,6 +97,36 @@ public partial class ElasticsearchSearcherVarianceTests
         );
 
         Assert.That(result.Total, Is.EqualTo(100));
+    }
+
+    [TestCase("en-US")]
+    [TestCase("da-DK")]
+    public async Task CanFilterSingleInvariantDocumentByInvariantField(string culture)
+    {
+        SearchResult result = await SearchAsync(
+            filters: [new TextFilter(FieldInvariance, ["commoninvariant78"], false)],
+            culture: culture
+        );
+
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.Total, Is.EqualTo(1));
+                Assert.That(result.Documents.First().Id, Is.EqualTo(_invariantDocumentIds[78]));
+            }
+        );
+    }
+
+    [TestCase("en-US")]
+    [TestCase("da-DK")]
+    public async Task CanFilterAllInvariantAndVariantDocumentsByInvariantField(string culture)
+    {
+        SearchResult result = await SearchAsync(
+            filters: [new TextFilter(FieldInvariance, ["commoninvariant"], false)],
+            culture: culture
+        );
+
+        Assert.That(result.Total, Is.EqualTo(200));
     }
 
     [TestCase("english")]
