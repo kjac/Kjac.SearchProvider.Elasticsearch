@@ -219,7 +219,7 @@ public class MyElasticsearchIndexManager : IElasticsearchIndexManager
     // ...
 }
 
-public class MyClientFactoryComposer : IComposer
+public class MyIndexManagerComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
         => builder.Services.AddUnique<IElasticsearchIndexManager, MyElasticsearchIndexManager>();
