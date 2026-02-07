@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
@@ -9,6 +10,7 @@ using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
 using Umbraco.Extensions;
+using HealthStatus = Umbraco.Cms.Search.Core.Models.Indexing.HealthStatus;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
@@ -249,6 +251,31 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
     public async Task ResetAsync(string indexAlias)
         => await _indexManager.ResetAsync(indexAlias);
+
+    public async Task<IndexMetadata> GetMetadataAsync(string indexAlias)
+    {
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
+
+        Indices indices = indexAlias;
+        IndicesStatsResponse statsResponse = await _clientFactory.GetClient().Indices.StatsAsync(indices, _ => {}, CancellationToken.None);
+
+        if (statsResponse.IsValidResponse && statsResponse.Indices?.TryGetValue(indexAlias, out IndicesStats? indexStats) is true)
+        {
+            var documentCount = indexStats.Total?.Docs?.Count ?? 0;
+
+            HealthStatus healthStatus = indexStats.Health switch
+            {
+                Elastic.Clients.Elasticsearch.HealthStatus.Green or Elastic.Clients.Elasticsearch.HealthStatus.Yellow
+                    => documentCount > 0 ? HealthStatus.Healthy : HealthStatus.Empty,
+                Elastic.Clients.Elasticsearch.HealthStatus.Red => HealthStatus.Corrupted,
+                _ => HealthStatus.Unknown
+            };
+
+            return new IndexMetadata(documentCount, healthStatus);
+        }
+
+        return new IndexMetadata(0, HealthStatus.Unknown);
+    }
 
     private record IndexDocument
     {

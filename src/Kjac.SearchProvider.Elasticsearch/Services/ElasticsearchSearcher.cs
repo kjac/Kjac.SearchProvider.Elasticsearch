@@ -38,6 +38,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         _logger = logger;
     }
 
+    // TODO: implement suggestions
     public async Task<SearchResult> SearchAsync(
         string indexAlias,
         string? query = null,
@@ -48,7 +49,8 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         string? segment = null,
         AccessContext? accessContext = null,
         int skip = 0,
-        int take = 10)
+        int take = 10,
+        int maxSuggestions = 0)
     {
         if (query is null && filters is null && facets is null && sorters is null)
         {
