@@ -66,6 +66,9 @@
       <Compile Update="ElasticsearchSearcherVarianceTests.MixedVariance.cs">
         <DependentUpon>ElasticsearchSearcherVarianceTests.cs</DependentUpon>
       </Compile>
+      <Compile Update="ElasticsearchSearcherVarianceTests.SegmentVariance.cs">
+        <DependentUpon>ElasticsearchSearcherVarianceTests.cs</DependentUpon>
+      </Compile>
     </ItemGroup>
 
     <ItemGroup>

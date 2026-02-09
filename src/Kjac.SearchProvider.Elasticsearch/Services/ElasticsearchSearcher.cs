@@ -69,11 +69,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 td => td
                     .Field(IndexConstants.FieldNames.Culture)
                     .Terms(new TermsQueryField(indexCultures.Select(FieldValue.String).ToArray()))
-            ),
-            qd => qd.Term(
-                td => td
-                    .Field(IndexConstants.FieldNames.Segment)
-                    .Value(segment.IndexSegment())
             )
         };
 
@@ -94,18 +89,25 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
         {
-            mustFilters.Add(
-                qd => qd
-                    .Bool(
-                        bd => bd
-                            .Should(
-                                MatchQuery(IndexConstants.FieldNames.AllTexts),
-                                MatchQuery(IndexConstants.FieldNames.AllTextsR1, _searcherOptions.BoostFactorTextR1),
-                                MatchQuery(IndexConstants.FieldNames.AllTextsR2, _searcherOptions.BoostFactorTextR2),
-                                MatchQuery(IndexConstants.FieldNames.AllTextsR3, _searcherOptions.BoostFactorTextR3)
-                            )
-                    )
-            );
+            List<Action<QueryDescriptor<SearchResultDocument>>> allTextsQueries =
+            [
+                MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTexts, null)),
+                MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR1, null), _searcherOptions.BoostFactorTextR1),
+                MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR2, null), _searcherOptions.BoostFactorTextR2),
+                MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR3, null), _searcherOptions.BoostFactorTextR3)
+            ];
+
+            if (segment.IsNullOrWhiteSpace() is false)
+            {
+                allTextsQueries.AddRange([
+                    MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTexts, segment)),
+                    MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR1, segment), _searcherOptions.BoostFactorTextR1),
+                    MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR2, segment), _searcherOptions.BoostFactorTextR2),
+                    MatchQuery(AllTextsFieldName(IndexConstants.FieldNames.AllTextsR3, segment), _searcherOptions.BoostFactorTextR3)
+                ]);
+            }
+
+            mustFilters.Add(qd => qd.Bool(bd => bd.Should(allTextsQueries.ToArray())));
         }
 
         // explicitly ignore duplicate facets
@@ -123,20 +125,24 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         Filter[] regularFilters = filtersAsArray.Except(facetFilters).ToArray();
 
         // add regular filters
-        mustFilters.AddRange(regularFilters.Where(filter => filter.Negate is false).Select(FilterDescriptor));
+        mustFilters.AddRange(
+            regularFilters
+                .Where(filter => filter.Negate is false)
+                .Select(filter => FilterDescriptor(filter, segment))
+        );
         Action<QueryDescriptor<SearchResultDocument>>[] mustNotFilters = regularFilters
             .Where(filter => filter.Negate)
-            .Select(FilterDescriptor)
+            .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
 
         // add post filters for facets
         Action<QueryDescriptor<SearchResultDocument>>[] mustPostFilters = facetFilters
             .Where(filter => filter.Negate is false)
-            .Select(FilterDescriptor)
+            .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
         Action<QueryDescriptor<SearchResultDocument>>[] mustNotPostFilters = facetFilters
             .Where(filter => filter.Negate)
-            .Select(FilterDescriptor)
+            .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
 
         SearchResponse<SearchResultDocument> result = await client.SearchAsync<SearchResultDocument>(
@@ -157,7 +163,7 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     {
                         foreach (Facet facet in facetsAsArray)
                         {
-                            AddAggregationDescriptor(a, facet, facetFilters);
+                            AddAggregationDescriptor(a, facet, facetFilters, segment);
                         }
                     }
                 )
@@ -202,7 +208,8 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
     private void AddAggregationDescriptor(
         FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,
         Facet facet,
-        Filter[] facetFilters)
+        Filter[] facetFilters,
+        string? segment)
     {
         facetFilters = facetFilters.Where(f => f.FieldName != facet.FieldName).ToArray();
         if (facetFilters.Length is 0)
@@ -213,11 +220,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         Action<QueryDescriptor<SearchResultDocument>>[] facetMustFilters = facetFilters
             .Where(filter => filter.Negate is false)
-            .Select(FilterDescriptor)
+            .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
         Action<QueryDescriptor<SearchResultDocument>>[] facetMustNotFilters = facetFilters
             .Where(filter => filter.Negate)
-            .Select(FilterDescriptor)
+            .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
 
         aggs.Add(
@@ -533,22 +540,25 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         return facetResult;
     }
 
-    private static string FieldName(Filter filter)
+    private static string FieldName(Filter filter, string? segment = null)
         => filter switch
         {
             DateTimeOffsetExactFilter or DateTimeOffsetRangeFilter => FieldName(
-                filter.FieldName,
+                SegmentedField(filter.FieldName, segment),
                 IndexConstants.FieldTypePostfix.DateTimeOffsets
             ),
             DecimalExactFilter or DecimalRangeFilter => FieldName(
-                filter.FieldName,
+                SegmentedField(filter.FieldName, segment),
                 IndexConstants.FieldTypePostfix.Decimals
             ),
             IntegerExactFilter or IntegerRangeFilter => FieldName(
-                filter.FieldName,
+                SegmentedField(filter.FieldName, segment),
                 IndexConstants.FieldTypePostfix.Integers
             ),
-            KeywordFilter => FieldName(filter.FieldName, IndexConstants.FieldTypePostfix.Keywords),
+            KeywordFilter => FieldName(
+                SegmentedField(filter.FieldName, segment),
+                IndexConstants.FieldTypePostfix.Keywords
+            ),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(filter),
                 $"Encountered an unsupported filter type: {filter.GetType().Name}"
@@ -593,24 +603,53 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
     private static string FacetName(Facet facet)
         => $"{facet.FieldName}_{facet.GetType().Name}";
 
-    private Action<QueryDescriptor<SearchResultDocument>> FilterDescriptor(Filter filter)
+    private static string AllTextsFieldName(string field, string? segment)
+        => FieldName(SegmentedField(field, segment), string.Empty);
+
+    private Action<QueryDescriptor<SearchResultDocument>> FilterDescriptor(Filter filter, string? segment)
         => filter switch
         {
             TextFilter textFilter => qd => qd
                 .Bool(
-                    bd => bd.Should(WildcardFilterQueryDescriptors(textFilter))
+                    bd => bd.Should(WildcardFilterQueryDescriptors(textFilter, segment))
+                ),
+            KeywordFilter keywordFilter when segment.IsNullOrWhiteSpace() => qd => qd
+                .Terms(
+                        td => td
+                            .Field(FieldName(filter))
+                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
                 ),
             KeywordFilter keywordFilter => qd => qd
-                .Terms(
-                    td => td
-                        .Field(FieldName(filter))
-                        .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
+                .Bool(bd => bd
+                    .Should(
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter))
+                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
+                        ),
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter, segment))
+                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
+                        )
+                    )
                 ),
-            IntegerExactFilter integerExactFilter => qd => qd
+            IntegerExactFilter integerExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
                 .Terms(
                     td => td
                         .Field(FieldName(filter))
                         .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
+                ),
+            IntegerExactFilter integerExactFilter => qd => qd
+                .Bool(bd => bd
+                    .Should(
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter))
+                            .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
+                        ),
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter, segment))
+                            .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
+                        )
+                    )
                 ),
             IntegerRangeFilter integerRangeFilter => qd => qd
                 .Bool(
@@ -619,10 +658,16 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             integerRangeFilter
                                 .Ranges
                                 .Select(r => IntegerRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .Union(segment.IsNullOrWhiteSpace()
+                                    ? []
+                                    : integerRangeFilter
+                                        .Ranges
+                                        .Select(r => IntegerRangeFilterQueryDescriptor(FieldName(filter, segment), r))
+                                )
                                 .ToArray()
                         )
                 ),
-            DecimalExactFilter decimalExactFilter => qd => qd
+            DecimalExactFilter decimalExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
                 .Terms(
                     td => td
                         .Field(FieldName(filter))
@@ -633,6 +678,29 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             )
                         )
                 ),
+            DecimalExactFilter decimalExactFilter => qd => qd
+                .Bool(bd => bd
+                    .Should(
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter))
+                            .Terms(
+                                new TermsQueryField(
+                                    decimalExactFilter.Values
+                                        .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
+                                )
+                            )
+                        ),
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter, segment))
+                            .Terms(
+                                new TermsQueryField(
+                                    decimalExactFilter.Values
+                                        .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
+                                )
+                            )
+                        )
+                    )
+                ),
             DecimalRangeFilter decimalRangeFilter => qd => qd
                 .Bool(
                     bd => bd
@@ -640,10 +708,16 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             decimalRangeFilter
                                 .Ranges
                                 .Select(r => DecimalRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .Union(segment.IsNullOrWhiteSpace()
+                                    ? []
+                                    : decimalRangeFilter
+                                        .Ranges
+                                        .Select(r => DecimalRangeFilterQueryDescriptor(FieldName(filter, segment), r))
+                                )
                                 .ToArray()
                         )
                 ),
-            DateTimeOffsetExactFilter dateTimeOffsetExactFilter => qd => qd
+            DateTimeOffsetExactFilter dateTimeOffsetExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
                 .Terms(
                     td => td
                         .Field(FieldName(filter))
@@ -654,6 +728,29 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             )
                         )
                 ),
+            DateTimeOffsetExactFilter dateTimeOffsetExactFilter => qd => qd
+                .Bool(bd => bd
+                    .Should(
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter))
+                            .Terms(
+                                new TermsQueryField(
+                                    dateTimeOffsetExactFilter.Values
+                                        .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
+                                )
+                            )
+                        ),
+                        sd => sd.Terms(td => td
+                            .Field(FieldName(filter, segment))
+                            .Terms(
+                                new TermsQueryField(
+                                    dateTimeOffsetExactFilter.Values
+                                        .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
+                                )
+                            )
+                        )
+                    )
+                ),
             DateTimeOffsetRangeFilter dateTimeOffsetRangeFilter => qd => qd
                 .Bool(
                     bd => bd
@@ -661,6 +758,12 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                             dateTimeOffsetRangeFilter
                                 .Ranges
                                 .Select(r => DateTimeOffsetRangeFilterQueryDescriptor(FieldName(filter), r))
+                                .Union(segment.IsNullOrWhiteSpace()
+                                    ? []
+                                    : dateTimeOffsetRangeFilter
+                                        .Ranges
+                                        .Select(r => DateTimeOffsetRangeFilterQueryDescriptor(FieldName(filter, segment), r))
+                                )
                                 .ToArray()
                         )
                 ),
@@ -670,13 +773,15 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             )
         };
 
-    private Action<QueryDescriptor<SearchResultDocument>>[] WildcardFilterQueryDescriptors(TextFilter textFilter)
+    private Action<QueryDescriptor<SearchResultDocument>>[] WildcardFilterQueryDescriptors(TextFilter textFilter, string? segment)
     {
         var fieldNameTexts = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.Texts);
         var fieldNameTextsR1 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR1);
         var fieldNameTextsR2 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR2);
         var fieldNameTextsR3 = FieldName(textFilter.FieldName, IndexConstants.FieldTypePostfix.TextsR3);
-        return textFilter.Values.Select(text => WildcardFilterQueryDescriptor(fieldNameTexts, text))
+        IEnumerable<Action<QueryDescriptor<SearchResultDocument>>> descriptors = textFilter
+            .Values
+            .Select(text => WildcardFilterQueryDescriptor(fieldNameTexts, text))
             .Union(
                 textFilter.Values.Select(
                     text => WildcardFilterQueryDescriptor(fieldNameTextsR1, text, _searcherOptions.BoostFactorTextR1)
@@ -691,8 +796,39 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 textFilter.Values.Select(
                     text => WildcardFilterQueryDescriptor(fieldNameTextsR3, text, _searcherOptions.BoostFactorTextR3)
                 )
-            )
-            .ToArray();
+            );
+
+        if (segment.IsNullOrWhiteSpace() is false)
+        {
+            var fieldNameTextsForSegment = FieldName(SegmentedField(textFilter.FieldName, segment), IndexConstants.FieldTypePostfix.Texts);
+            var fieldNameTextsR1ForSegment = FieldName(SegmentedField(textFilter.FieldName, segment), IndexConstants.FieldTypePostfix.TextsR1);
+            var fieldNameTextsR2ForSegment = FieldName(SegmentedField(textFilter.FieldName, segment), IndexConstants.FieldTypePostfix.TextsR2);
+            var fieldNameTextsR3ForSegment = FieldName(SegmentedField(textFilter.FieldName, segment), IndexConstants.FieldTypePostfix.TextsR3);
+
+            descriptors = descriptors
+                .Union(
+                    textFilter.Values.Select(
+                        text => WildcardFilterQueryDescriptor(fieldNameTextsForSegment, text)
+                    )
+                )
+                .Union(
+                    textFilter.Values.Select(
+                        text => WildcardFilterQueryDescriptor(fieldNameTextsR1ForSegment, text, _searcherOptions.BoostFactorTextR1)
+                    )
+                )
+                .Union(
+                    textFilter.Values.Select(
+                        text => WildcardFilterQueryDescriptor(fieldNameTextsR2ForSegment, text, _searcherOptions.BoostFactorTextR2)
+                    )
+                )
+                .Union(
+                    textFilter.Values.Select(
+                        text => WildcardFilterQueryDescriptor(fieldNameTextsR3ForSegment, text, _searcherOptions.BoostFactorTextR3)
+                    )
+                );
+        }
+
+        return descriptors.ToArray();
     }
 
     private Action<QueryDescriptor<SearchResultDocument>> WildcardFilterQueryDescriptor(

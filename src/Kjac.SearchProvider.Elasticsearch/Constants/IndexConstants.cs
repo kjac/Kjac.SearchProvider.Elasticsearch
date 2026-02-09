@@ -19,17 +19,15 @@ internal static class IndexConstants
 
         public const string Culture = "culture";
 
-        public const string Segment = "segment";
-
         public const string AccessKeys = "accessKeys";
 
-        public const string AllTexts = "allTexts";
+        public const string AllTexts = "__allTexts";
 
-        public const string AllTextsR1 = "allTextsR1";
+        public const string AllTextsR1 = "__allTextsR1";
 
-        public const string AllTextsR2 = "allTextsR2";
+        public const string AllTextsR2 = "__allTextsR2";
 
-        public const string AllTextsR3 = "allTextsR3";
+        public const string AllTextsR3 = "__allTextsR3";
 
         public const string Fields = "fields";
     }

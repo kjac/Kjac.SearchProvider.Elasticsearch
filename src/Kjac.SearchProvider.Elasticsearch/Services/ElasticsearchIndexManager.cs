@@ -56,7 +56,6 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
                                     { IndexConstants.FieldNames.Key, new KeywordProperty() },
                                     { IndexConstants.FieldNames.ObjectType, new KeywordProperty() },
                                     { IndexConstants.FieldNames.Culture, new KeywordProperty() },
-                                    { IndexConstants.FieldNames.Segment, new KeywordProperty() },
                                     { IndexConstants.FieldNames.AccessKeys, new KeywordProperty() },
                                 }
                             )
