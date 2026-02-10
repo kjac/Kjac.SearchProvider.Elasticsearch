@@ -613,42 +613,20 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 .Bool(
                     bd => bd.Should(WildcardFilterQueryDescriptors(textFilter, segment))
                 ),
-            KeywordFilter keywordFilter when segment.IsNullOrWhiteSpace() => qd => qd
-                .Terms(
-                        td => td
-                            .Field(FieldName(filter))
-                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
-                ),
+            KeywordFilter keywordFilter when segment.IsNullOrWhiteSpace() => KeywordTermsFilterDescriptor(keywordFilter),
             KeywordFilter keywordFilter => qd => qd
                 .Bool(bd => bd
                     .Should(
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter))
-                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
-                        ),
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter, segment))
-                            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
-                        )
+                        KeywordTermsFilterDescriptor(keywordFilter),
+                        KeywordTermsFilterDescriptor(keywordFilter, segment)
                     )
                 ),
-            IntegerExactFilter integerExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
-                .Terms(
-                    td => td
-                        .Field(FieldName(filter))
-                        .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
-                ),
+            IntegerExactFilter integerExactFilter when segment.IsNullOrWhiteSpace() => IntegerTermsFilterDescriptor(integerExactFilter),
             IntegerExactFilter integerExactFilter => qd => qd
                 .Bool(bd => bd
                     .Should(
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter))
-                            .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
-                        ),
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter, segment))
-                            .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
-                        )
+                        IntegerTermsFilterDescriptor(integerExactFilter),
+                        IntegerTermsFilterDescriptor(integerExactFilter, segment)
                     )
                 ),
             IntegerRangeFilter integerRangeFilter => qd => qd
@@ -667,38 +645,12 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                 .ToArray()
                         )
                 ),
-            DecimalExactFilter decimalExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
-                .Terms(
-                    td => td
-                        .Field(FieldName(filter))
-                        .Terms(
-                            new TermsQueryField(
-                                decimalExactFilter.Values
-                                    .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
-                            )
-                        )
-                ),
+            DecimalExactFilter decimalExactFilter when segment.IsNullOrWhiteSpace() => DecimalTermsFilterDescriptor(decimalExactFilter),
             DecimalExactFilter decimalExactFilter => qd => qd
                 .Bool(bd => bd
                     .Should(
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter))
-                            .Terms(
-                                new TermsQueryField(
-                                    decimalExactFilter.Values
-                                        .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
-                                )
-                            )
-                        ),
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter, segment))
-                            .Terms(
-                                new TermsQueryField(
-                                    decimalExactFilter.Values
-                                        .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
-                                )
-                            )
-                        )
+                        DecimalTermsFilterDescriptor(decimalExactFilter),
+                        DecimalTermsFilterDescriptor(decimalExactFilter, segment)
                     )
                 ),
             DecimalRangeFilter decimalRangeFilter => qd => qd
@@ -717,38 +669,12 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                                 .ToArray()
                         )
                 ),
-            DateTimeOffsetExactFilter dateTimeOffsetExactFilter when segment.IsNullOrWhiteSpace() => qd => qd
-                .Terms(
-                    td => td
-                        .Field(FieldName(filter))
-                        .Terms(
-                            new TermsQueryField(
-                                dateTimeOffsetExactFilter.Values
-                                    .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
-                            )
-                        )
-                ),
+            DateTimeOffsetExactFilter dateTimeOffsetExactFilter when segment.IsNullOrWhiteSpace() => DateTimeOffsetTermsFilterDescriptor(dateTimeOffsetExactFilter),
             DateTimeOffsetExactFilter dateTimeOffsetExactFilter => qd => qd
                 .Bool(bd => bd
                     .Should(
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter))
-                            .Terms(
-                                new TermsQueryField(
-                                    dateTimeOffsetExactFilter.Values
-                                        .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
-                                )
-                            )
-                        ),
-                        sd => sd.Terms(td => td
-                            .Field(FieldName(filter, segment))
-                            .Terms(
-                                new TermsQueryField(
-                                    dateTimeOffsetExactFilter.Values
-                                        .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
-                                )
-                            )
-                        )
+                        DateTimeOffsetTermsFilterDescriptor(dateTimeOffsetExactFilter),
+                        DateTimeOffsetTermsFilterDescriptor(dateTimeOffsetExactFilter, segment)
                     )
                 ),
             DateTimeOffsetRangeFilter dateTimeOffsetRangeFilter => qd => qd
@@ -772,6 +698,41 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 $"Encountered an unsupported filter type: {filter.GetType().Name}"
             )
         };
+
+    private static Action<QueryDescriptor<SearchResultDocument>> KeywordTermsFilterDescriptor(KeywordFilter keywordFilter, string? segment = null)
+        => qd => qd.Terms(td => td
+            .Field(FieldName(keywordFilter, segment))
+            .Terms(new TermsQueryField(keywordFilter.Values.Select(FieldValue.String).ToArray()))
+        );
+
+
+    private static Action<QueryDescriptor<SearchResultDocument>> IntegerTermsFilterDescriptor(IntegerExactFilter integerExactFilter, string? segment = null)
+        => qd => qd.Terms(td => td
+            .Field(FieldName(integerExactFilter, segment))
+            .Terms(new TermsQueryField(integerExactFilter.Values.Select(v => FieldValue.Long(v)).ToArray()))
+        );
+
+    private static Action<QueryDescriptor<SearchResultDocument>> DecimalTermsFilterDescriptor(DecimalExactFilter decimalExactFilter, string? segment = null)
+        => qd => qd.Terms(td => td
+            .Field(FieldName(decimalExactFilter, segment))
+            .Terms(
+                new TermsQueryField(
+                    decimalExactFilter.Values
+                        .Select(v => FieldValue.Double(Convert.ToDouble(v))).ToArray()
+                )
+            )
+        );
+
+    private static Action<QueryDescriptor<SearchResultDocument>> DateTimeOffsetTermsFilterDescriptor(DateTimeOffsetExactFilter dateTimeOffsetExactFilter, string? segment = null)
+        => qd => qd.Terms(td => td
+            .Field(FieldName(dateTimeOffsetExactFilter, segment))
+            .Terms(
+                new TermsQueryField(
+                    dateTimeOffsetExactFilter.Values
+                        .Select(v => FieldValue.String(v.ToString("O"))).ToArray()
+                )
+            )
+        );
 
     private Action<QueryDescriptor<SearchResultDocument>>[] WildcardFilterQueryDescriptors(TextFilter textFilter, string? segment)
     {
