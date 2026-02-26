@@ -183,7 +183,7 @@ If you need more control over how the underlying Elasticsearch client manages co
 using Kjac.SearchProvider.Elasticsearch.Services;
 using Umbraco.Cms.Core.Composing;
 
-namespace Kjac.SearchProvider.Elasticsearch.Site.DependencyInjection;
+namespace My.Site;
 
 public class MyElasticsearchClientFactory : IElasticsearchClientFactory
 {
@@ -212,14 +212,14 @@ For most sites, this tradeoff is unlikely to be problematic. However, if you wan
 using Kjac.SearchProvider.Elasticsearch.Services;
 using Umbraco.Cms.Core.Composing;
 
-namespace Kjac.SearchProvider.Elasticsearch.Site.DependencyInjection;
+namespace My.Site;
 
 public class MyElasticsearchIndexManager : IElasticsearchIndexManager
 {
     // ...
 }
 
-public class MyClientFactoryComposer : IComposer
+public class MyIndexManagerComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
         => builder.Services.AddUnique<IElasticsearchIndexManager, MyElasticsearchIndexManager>();
