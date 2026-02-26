@@ -12,9 +12,7 @@ public class SiteComposer : IComposer
             // add core services for search abstractions
             .AddSearchCore()
             // use the Elasticsearch search provider
-            .AddElasticsearchSearchProvider()
-            // force rebuild indexes after startup
-            .RebuildIndexes();
+            .AddElasticsearchSearchProvider();
 
         // configure System.Text.Json to allow serializing output models
         builder.ConfigureJsonOptions();
