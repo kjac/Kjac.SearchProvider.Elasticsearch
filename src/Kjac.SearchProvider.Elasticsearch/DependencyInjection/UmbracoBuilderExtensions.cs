@@ -20,23 +20,23 @@ public static class UmbracoBuilderExtensions
             options =>
             {
                 // register Elasticsearch indexes for draft and published content
-                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                options.RegisterContentIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
                     CoreConstants.IndexAliases.DraftContent,
                     UmbracoObjectTypes.Document
                 );
-                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IPublishedContentChangeStrategy>(
+                options.RegisterContentIndex<IElasticsearchIndexer, IElasticsearchSearcher, IPublishedContentChangeStrategy>(
                     CoreConstants.IndexAliases.PublishedContent,
                     UmbracoObjectTypes.Document
                 );
 
                 // register Elasticsearch index for media
-                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                options.RegisterContentIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
                     CoreConstants.IndexAliases.DraftMedia,
                     UmbracoObjectTypes.Media
                 );
 
                 // register Elasticsearch index for members
-                options.RegisterIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
+                options.RegisterContentIndex<IElasticsearchIndexer, IElasticsearchSearcher, IDraftContentChangeStrategy>(
                     CoreConstants.IndexAliases.DraftMembers,
                     UmbracoObjectTypes.Member
                 );
