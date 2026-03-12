@@ -34,7 +34,37 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
         }
 
         indexAlias = _indexAliasResolver.Resolve(indexAlias);
+        await EnsureResolvedIndexAliasAsync(indexAlias);
+    }
 
+    public async Task ResetAsync(string indexAlias)
+    {
+        if (ShouldNotManipulateIndexes())
+        {
+            return;
+        }
+
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
+
+        ElasticsearchClient client = _clientFactory.GetClient();
+
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
+        if (existsResponse.Exists)
+        {
+            DeleteIndexResponse result = await client.Indices.DeleteAsync(indexAlias);
+
+            if (result.IsValidResponse is false)
+            {
+                LogFailedElasticResponse(_logger, indexAlias, "Could not reset the index", result);
+                return;
+            }
+        }
+
+        await EnsureResolvedIndexAliasAsync(indexAlias);
+    }
+
+    private async Task EnsureResolvedIndexAliasAsync(string indexAlias)
+    {
         ElasticsearchClient client = _clientFactory.GetClient();
 
         ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
@@ -83,31 +113,5 @@ internal sealed class ElasticsearchIndexManager : ElasticsearchIndexManagingServ
         {
             LogFailedElasticResponse(_logger, "Index could not be created", indexAlias, createResponse);
         }
-    }
-
-    public async Task ResetAsync(string indexAlias)
-    {
-        if (ShouldNotManipulateIndexes())
-        {
-            return;
-        }
-
-        indexAlias = _indexAliasResolver.Resolve(indexAlias);
-
-        ElasticsearchClient client = _clientFactory.GetClient();
-
-        ExistsResponse existsResponse = await client.Indices.ExistsAsync(indexAlias);
-        if (existsResponse.Exists)
-        {
-            DeleteIndexResponse result = await client.Indices.DeleteAsync(indexAlias);
-
-            if (result.IsValidResponse is false)
-            {
-                LogFailedElasticResponse(_logger, indexAlias, "Could not reset the index", result);
-                return;
-            }
-        }
-
-        await EnsureAsync(indexAlias);
     }
 }

@@ -19,10 +19,9 @@ public class ElasticsearchCustomEnvironmentTest : ElasticsearchTestBase
             }
         );
 
-    protected override async Task PerformOneTimeSetUpAsync()
-        => await DeleteIndex(EnvironmentIndexAlias());
-
-    protected override async Task PerformOneTimeTearDownAsync()
+    [SetUp]
+    [TearDown]
+    protected async Task CleanUp()
         => await DeleteIndex(EnvironmentIndexAlias());
 
     [Test]
@@ -31,6 +30,17 @@ public class ElasticsearchCustomEnvironmentTest : ElasticsearchTestBase
         ElasticsearchClient client = GetRequiredService<IElasticsearchClientFactory>().GetClient();
 
         await IndexManager.EnsureAsync(IndexAlias);
+
+        ExistsResponse existsResponse = await client.Indices.ExistsAsync(EnvironmentIndexAlias());
+        Assert.That(existsResponse.Exists, Is.True);
+    }
+
+    [Test]
+    public async Task CanResetCustomEnvironmentIndex()
+    {
+        ElasticsearchClient client = GetRequiredService<IElasticsearchClientFactory>().GetClient();
+
+        await IndexManager.ResetAsync(IndexAlias);
 
         ExistsResponse existsResponse = await client.Indices.ExistsAsync(EnvironmentIndexAlias());
         Assert.That(existsResponse.Exists, Is.True);
