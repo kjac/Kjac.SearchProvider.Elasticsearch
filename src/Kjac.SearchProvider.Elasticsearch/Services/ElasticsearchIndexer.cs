@@ -9,7 +9,6 @@ using Kjac.SearchProvider.Elasticsearch.Constants;
 using Kjac.SearchProvider.Elasticsearch.Extensions;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
-using Umbraco.Extensions;
 using HealthStatus = Umbraco.Cms.Search.Core.Models.Indexing.HealthStatus;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
 
@@ -334,10 +333,10 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                 _ => HealthStatus.Unknown
             };
 
-            return new IndexMetadata(documentCount, healthStatus);
+            return new IndexMetadata(documentCount, healthStatus, PackageConstants.ProviderIdentifier);
         }
 
-        return new IndexMetadata(0, HealthStatus.Unknown);
+        return new IndexMetadata(0, HealthStatus.Unknown, PackageConstants.ProviderIdentifier);
     }
 
     private record IndexDocument
