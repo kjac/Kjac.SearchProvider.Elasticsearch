@@ -73,18 +73,21 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         };
 
         // add protected access filter
-        Guid[] accessKeys = accessContext is null
-            ? [Guid.Empty]
-            : new[] { Guid.Empty, accessContext.PrincipalId }.Union(accessContext.GroupIds ?? []).ToArray();
-        mustFilters.Add(
-            qd => qd.Terms(
-                td => td
-                    .Field(IndexConstants.FieldNames.AccessKeys)
-                    .Terms(
-                        new TermsQueryField(accessKeys.Select(key => FieldValue.String(key.ToString("D"))).ToArray())
-                    )
-            )
-        );
+        if (accessContext?.Bypass is not true)
+        {
+            Guid[] accessKeys = accessContext is null
+                ? [Guid.Empty]
+                : new[] { Guid.Empty, accessContext.PrincipalId }.Union(accessContext.GroupIds ?? []).ToArray();
+            mustFilters.Add(
+                qd => qd.Terms(
+                    td => td
+                        .Field(IndexConstants.FieldNames.AccessKeys)
+                        .Terms(
+                            new TermsQueryField(accessKeys.Select(key => FieldValue.String(key.ToString("D"))).ToArray())
+                        )
+                )
+            );
+        }
 
         // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
