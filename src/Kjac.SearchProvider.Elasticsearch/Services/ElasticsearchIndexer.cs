@@ -268,10 +268,23 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
         ElasticsearchClient client = _clientFactory.GetClient();
 
-        BulkResponse response = await client.IndexManyAsync(documents, index: _indexAliasResolver.Resolve(indexAlias));
-        if (response.IsValidResponse is false)
+        // first delete all documents with this ID, to clean up any stray variations
+        DeleteByQueryResponse deleteResponse = await client.DeleteByQueryAsync<IndexDocument>(
+            dr => dr
+                .Indices(indexAlias)
+                .Query(qd => qd.Term(tq => tq.Field(d => d.Key).Value(id.ToString())))
+        );
+        if (deleteResponse.IsValidResponse is false)
         {
-            LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", response);
+            LogFailedElasticResponse(_logger, indexAlias, "Could not perform delete before add/update", deleteResponse);
+            return;
+        }
+
+        // next insert all the variations in bulk
+        BulkResponse indexResponse = await client.IndexManyAsync(documents, index: _indexAliasResolver.Resolve(indexAlias));
+        if (indexResponse.IsValidResponse is false)
+        {
+            LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", indexResponse);
         }
     }
 
