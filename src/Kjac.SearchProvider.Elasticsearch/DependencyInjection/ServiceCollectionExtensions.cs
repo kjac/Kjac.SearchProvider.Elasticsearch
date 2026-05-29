@@ -24,6 +24,7 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<IIndexAliasResolver, IndexAliasResolver>();
 
         services.Configure<ClientOptions>(configuration.GetSection("ElasticsearchSearchProvider:Client"));
+        services.Configure<IndexerOptions>(configuration.GetSection("ElasticsearchSearchProvider:Indexer"));
 
         return services;
     }

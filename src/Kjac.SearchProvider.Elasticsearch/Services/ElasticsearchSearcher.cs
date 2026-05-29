@@ -1,4 +1,6 @@
 ﻿using System.Text.Json;
+using System.Text;
+using System.Text.RegularExpressions;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Aggregations;
 using Elastic.Clients.Elasticsearch.Core.Search;
@@ -38,7 +40,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         _logger = logger;
     }
 
-    // TODO: implement suggestions
     public async Task<SearchResult> SearchAsync(
         string indexAlias,
         string? query = null,
@@ -88,6 +89,10 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 )
             );
         }
+
+        // snapshot the culture + access filters so the suggestion query can reuse them without the
+        // full-text clause (which is replaced by a phrase-prefix match) or the facet aggregations
+        Action<QueryDescriptor<SearchResultDocument>>[] cultureAndAccessFilters = mustFilters.ToArray();
 
         // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
@@ -195,7 +200,18 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         Document[] keys = ExtractDocuments(result);
         IEnumerable<FacetResult> facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
 
-        return new SearchResult(result.Total, keys, facetResult);
+        IEnumerable<string>? suggestions = await SuggestAsync(
+            client,
+            indexAlias,
+            query,
+            maxSuggestions,
+            segment,
+            cultureAndAccessFilters,
+            regularFilters,
+            facetFilters
+        );
+
+        return new SearchResult(result.Total, keys, facetResult, suggestions);
 
         // full text filter uses boolean prefix (AND)
         Action<QueryDescriptor<SearchResultDocument>> MatchQuery(string fieldName, float boost = 1.0f) =>
@@ -206,6 +222,106 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     .Operator(Operator.And)
                     .Boost(boost)
             );
+    }
+
+    // produces phrase / next-word autocomplete suggestions for the typed query, scoped by the same
+    // culture, access and filtering the main search applies (the full-text clause is replaced by a
+    // phrase-prefix match). Suggestions are the shingle tokens (word n-grams) that start with the
+    // typed text, surfaced via a terms aggregation with a prefix include pattern.
+    private async Task<IEnumerable<string>?> SuggestAsync(
+        ElasticsearchClient client,
+        string indexAlias,
+        string? query,
+        int maxSuggestions,
+        string? segment,
+        Action<QueryDescriptor<SearchResultDocument>>[] cultureAndAccessFilters,
+        Filter[] regularFilters,
+        Filter[] facetFilters)
+    {
+        if (maxSuggestions <= 0 || query.IsNullOrWhiteSpace())
+        {
+            return null;
+        }
+
+        // normalize: lowercase + collapse internal whitespace so it lines up with the indexed shingles
+        var prefix = Regex.Replace(query!.Trim().ToLowerInvariant(), @"\s+", " ");
+        if (prefix.Length is 0)
+        {
+            return null;
+        }
+
+        var includePattern = $"{EscapeLuceneRegex(prefix)}.*";
+        var textField = IndexConstants.FieldNames.Suggest;
+        var shingleField = $"{IndexConstants.FieldNames.Suggest}.{IndexConstants.Analysis.ShingleSubField}";
+
+        // reuse every active filter the main query applies, minus the full-text clause
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust = cultureAndAccessFilters
+            .Concat(regularFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+            .Concat(facetFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+            .Append(qd => qd.MatchPhrasePrefix(m => m.Field(textField).Query(prefix)))
+            .ToArray();
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot = regularFilters
+            .Where(f => f.Negate)
+            .Select(f => FilterDescriptor(f, segment))
+            .Concat(facetFilters.Where(f => f.Negate).Select(f => FilterDescriptor(f, segment)))
+            .ToArray();
+
+        SearchResponse<SearchResultDocument> response = await client.SearchAsync<SearchResultDocument>(
+            sr => sr
+                .Indices(_indexAliasResolver.Resolve(indexAlias))
+                .Size(0)
+                .Query(qd => qd.Bool(bd => bd.Must(suggestMust).MustNot(suggestMustNot)))
+                .Aggregations(
+                    a => a.Add(
+                        "suggestions",
+                        ad => ad.Terms(
+                            td => td
+                                .Field(shingleField)
+                                .Include(new TermsInclude(includePattern))
+                                .Size(maxSuggestions * 3)
+                        )
+                    )
+                )
+        );
+
+        if (response.IsValidResponse is false)
+        {
+            LogFailedElasticResponse(_logger, indexAlias, "Could not execute suggestions", response);
+            return null;
+        }
+
+        if (response.Aggregations?.TryGetValue("suggestions", out IAggregate? aggregate) is not true
+            || aggregate is not StringTermsAggregate termsAggregate)
+        {
+            return null;
+        }
+
+        var suggestions = termsAggregate.Buckets
+            .Select(bucket => bucket.Key.TryGetString(out var key) ? key : null)
+            .WhereNotNull()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(maxSuggestions)
+            .ToArray();
+
+        return suggestions.Length > 0 ? suggestions : null;
+    }
+
+    // escape Lucene regexp reserved characters so user input can't break or alter the include pattern
+    private static string EscapeLuceneRegex(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var c in value)
+        {
+            if (c is '.' or '?' or '+' or '*' or '|' or '{' or '}' or '[' or ']' or '(' or ')'
+                or '"' or '\\' or '#' or '@' or '&' or '<' or '>' or '~')
+            {
+                builder.Append('\\');
+            }
+
+            builder.Append(c);
+        }
+
+        return builder.ToString();
     }
 
     private void AddAggregationDescriptor(

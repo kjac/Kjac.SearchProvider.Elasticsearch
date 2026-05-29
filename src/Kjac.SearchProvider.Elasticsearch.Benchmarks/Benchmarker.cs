@@ -41,6 +41,7 @@ public class Benchmarker
         await BenchmarkSingleFacetSingleValueWithSearchTerm();
         await BenchmarkSingleFacetSingleValueInParallel();
         await BenchmarkSearchTerm();
+        await BenchmarkSuggestion();
     }
 
     private async Task WarmUp() => await PerformSingleFacetSearch(1, 1, []);
@@ -104,23 +105,30 @@ public class Benchmarker
     }
 
     private async Task BenchmarkSearchTerm()
-        => await PerformBenchmark(
-            nameof(BenchmarkSearchTerm),
-            async (count, timings) =>
-            {
-                var start = DateTimeOffset.UtcNow;
+        => await PerformBenchmark(nameof(BenchmarkSearchTerm), PerformSearchTermBenchmark());
 
-                var cultureDiscriminator = count % 3;
-                var culture = cultureDiscriminator == 1 ? "en-US" : cultureDiscriminator == 2 ? "da-DK" : null;
+    private async Task BenchmarkSuggestion()
+        => await PerformBenchmark(nameof(BenchmarkSuggestion), PerformSearchTermBenchmark(maxSuggestions: 10));
 
-                var result = await _searcher.SearchAsync(
-                    IndexAlias,
-                    culture: culture,
-                    query: RandomSearchTerm()
-                );
+    private Func<int, List<TimeSpan>, Task> PerformSearchTermBenchmark(int maxSuggestions = 0)
+    {
+        return async (count, timings) =>
+        {
+            var start = DateTimeOffset.UtcNow;
 
-                timings.Add(DateTimeOffset.UtcNow - start);
-            });
+            var cultureDiscriminator = count % 3;
+            var culture = cultureDiscriminator == 1 ? "en-US" : cultureDiscriminator == 2 ? "da-DK" : null;
+
+            var result = await _searcher.SearchAsync(
+                IndexAlias,
+                culture: culture,
+                query: RandomSearchTerm(),
+                maxSuggestions: maxSuggestions
+            );
+
+            timings.Add(DateTimeOffset.UtcNow - start);
+        };
+    }
 
     private async Task PerformBenchmark(string name, Func<int, List<TimeSpan>, Task> action)
     {
