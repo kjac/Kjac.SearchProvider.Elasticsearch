@@ -23,6 +23,10 @@ namespace Kjac.SearchProvider.Elasticsearch.Services;
 
 internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
+    // aggregation key for the folded-in suggestion lookup; "__" prefix avoids clashing with facet
+    // aggregation names (which are "{fieldName}_{facetType}")
+    private const string SuggestionsAggregationName = "__suggestions";
+
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchSearcher> _logger;
     private readonly IIndexAliasResolver _indexAliasResolver;
@@ -153,6 +157,37 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
 
+        // prepare suggestions; these are folded into the main search as a scoped filter aggregation
+        // so no second round-trip is needed when suggestions are requested
+        var includeSuggestions = maxSuggestions > 0 && query.IsNullOrWhiteSpace() is false;
+        var suggestPrefix = string.Empty;
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust = [];
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot = [];
+        if (includeSuggestions)
+        {
+            // normalize: lowercase + collapse internal whitespace so it lines up with the indexed shingles
+            suggestPrefix = Regex.Replace(query!.Trim().ToLowerInvariant(), @"\s+", " ");
+            if (suggestPrefix.Length is 0)
+            {
+                includeSuggestions = false;
+            }
+            else
+            {
+                // reuse every active filter the main query applies, minus the full-text clause (which is
+                // replaced by a phrase-prefix match on the suggest field)
+                suggestMust = cultureAndAccessFilters
+                    .Concat(regularFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+                    .Concat(facetFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+                    .Append(qd => qd.MatchPhrasePrefix(m => m.Field(IndexConstants.FieldNames.Suggest).Query(suggestPrefix)))
+                    .ToArray();
+                suggestMustNot = regularFilters
+                    .Where(f => f.Negate)
+                    .Select(f => FilterDescriptor(f, segment))
+                    .Concat(facetFilters.Where(f => f.Negate).Select(f => FilterDescriptor(f, segment)))
+                    .ToArray();
+            }
+        }
+
         SearchResponse<SearchResultDocument> result = await client.SearchAsync<SearchResultDocument>(
             sr => sr
                 .Indices(_indexAliasResolver.Resolve(indexAlias))
@@ -172,6 +207,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                         foreach (Facet facet in facetsAsArray)
                         {
                             AddAggregationDescriptor(a, facet, facetFilters, segment);
+                        }
+
+                        if (includeSuggestions)
+                        {
+                            AddSuggestionAggregationDescriptor(a, suggestMust, suggestMustNot, suggestPrefix, maxSuggestions);
                         }
                     }
                 )
@@ -199,17 +239,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         Document[] keys = ExtractDocuments(result);
         IEnumerable<FacetResult> facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
-
-        IEnumerable<string>? suggestions = await SuggestAsync(
-            client,
-            indexAlias,
-            query,
-            maxSuggestions,
-            segment,
-            cultureAndAccessFilters,
-            regularFilters,
-            facetFilters
-        );
+        IEnumerable<string>? suggestions = includeSuggestions
+            ? ExtractSuggestions(result.Aggregations, maxSuggestions)
+            : null;
 
         return new SearchResult(result.Total, keys, facetResult, suggestions);
 
@@ -224,57 +256,28 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             );
     }
 
-    // produces phrase / next-word autocomplete suggestions for the typed query, scoped by the same
-    // culture, access and filtering the main search applies (the full-text clause is replaced by a
-    // phrase-prefix match). Suggestions are the shingle tokens (word n-grams) that start with the
-    // typed text, surfaced via a terms aggregation with a prefix include pattern.
-    private async Task<IEnumerable<string>?> SuggestAsync(
-        ElasticsearchClient client,
-        string indexAlias,
-        string? query,
-        int maxSuggestions,
-        string? segment,
-        Action<QueryDescriptor<SearchResultDocument>>[] cultureAndAccessFilters,
-        Filter[] regularFilters,
-        Filter[] facetFilters)
+    // adds a scoped filter aggregation that produces phrase / next-word autocomplete suggestions for
+    // the typed query. The filter mirrors the culture, access and filtering of the main search (the
+    // full-text clause is replaced by a phrase-prefix match); the nested terms aggregation surfaces
+    // the shingle tokens (word n-grams) that start with the typed text via a prefix include pattern.
+    private void AddSuggestionAggregationDescriptor(
+        FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust,
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot,
+        string prefix,
+        int maxSuggestions)
     {
-        if (maxSuggestions <= 0 || query.IsNullOrWhiteSpace())
-        {
-            return null;
-        }
-
-        // normalize: lowercase + collapse internal whitespace so it lines up with the indexed shingles
-        var prefix = Regex.Replace(query!.Trim().ToLowerInvariant(), @"\s+", " ");
-        if (prefix.Length is 0)
-        {
-            return null;
-        }
-
         var includePattern = $"{EscapeLuceneRegex(prefix)}.*";
-        var textField = IndexConstants.FieldNames.Suggest;
         var shingleField = $"{IndexConstants.FieldNames.Suggest}.{IndexConstants.Analysis.ShingleSubField}";
 
-        // reuse every active filter the main query applies, minus the full-text clause
-        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust = cultureAndAccessFilters
-            .Concat(regularFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
-            .Concat(facetFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
-            .Append(qd => qd.MatchPhrasePrefix(m => m.Field(textField).Query(prefix)))
-            .ToArray();
-        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot = regularFilters
-            .Where(f => f.Negate)
-            .Select(f => FilterDescriptor(f, segment))
-            .Concat(facetFilters.Where(f => f.Negate).Select(f => FilterDescriptor(f, segment)))
-            .ToArray();
-
-        SearchResponse<SearchResultDocument> response = await client.SearchAsync<SearchResultDocument>(
-            sr => sr
-                .Indices(_indexAliasResolver.Resolve(indexAlias))
-                .Size(0)
-                .Query(qd => qd.Bool(bd => bd.Must(suggestMust).MustNot(suggestMustNot)))
+        aggs.Add(
+            SuggestionsAggregationName,
+            ad => ad
+                .Filter(qd => qd.Bool(bd => bd.Must(suggestMust).MustNot(suggestMustNot)))
                 .Aggregations(
-                    a => a.Add(
-                        "suggestions",
-                        ad => ad.Terms(
+                    sa => sa.Add(
+                        SuggestionsAggregationName,
+                        sad => sad.Terms(
                             td => td
                                 .Field(shingleField)
                                 .Include(new TermsInclude(includePattern))
@@ -283,15 +286,14 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     )
                 )
         );
+    }
 
-        if (response.IsValidResponse is false)
-        {
-            LogFailedElasticResponse(_logger, indexAlias, "Could not execute suggestions", response);
-            return null;
-        }
-
-        if (response.Aggregations?.TryGetValue("suggestions", out IAggregate? aggregate) is not true
-            || aggregate is not StringTermsAggregate termsAggregate)
+    private static IEnumerable<string>? ExtractSuggestions(AggregateDictionary? aggregations, int maxSuggestions)
+    {
+        if (aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate? aggregate) is not true
+            || aggregate is not FilterAggregate filterAggregate
+            || filterAggregate.Aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate? inner) is not true
+            || inner is not StringTermsAggregate termsAggregate)
         {
             return null;
         }
