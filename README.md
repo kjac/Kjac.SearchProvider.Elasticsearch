@@ -159,13 +159,38 @@ public class AdditionalIndexesComposer : IComposer
 }
 ```
 
-## Extendability
+## Configuration
 
-Generally, you should look to Umbraco search for extension points. There are however a few notable extension points in this search provider as well.
+These are the configuration options for this search provider.
+
+
+### Disabling indexing for suggestion
+
+The search provider supports suggestions by default. If you do not plan on using suggestions, you can disable suggestion indexing entirely. This frees up space in your indexes, and also speeds up the indexing a little:
+
+```csharp
+builder.Services.Configure<IndexerOptions>(options =>
+{
+    // disable suggestion indexing entirely
+    options.UseSuggestions = false;
+});
+```
+
+### Limit the number of suggestions in the index
+
+Suggestions are generated from the most relevant text fields (all `TextsR1` values, e.g. the document names) by default. You can change this by explicitly defining which fields to use as the source for suggestions (all `Text*` values will be included from these fields):
+
+```csharp
+builder.Services.Configure<IndexerOptions>(options =>
+{
+    // limit the source of suggestions to document name (core constant) and the title and description properties
+    options.SuggestionFields = [Umbraco.Cms.Search.Core.Constants.FieldNames.Name, "title", "description"];
+});
+```
 
 ### Tweaking score boosting for textual relevance
 
-Umbraco search allows for multiple textual relevance options within a single field. You can change the boost factors of the search provider by configuring the [`SearcherOptions`](https://github.com/kjac/Kjac.SearchProvider.Elasticsearch/blob/main/src/Kjac.SearchProvider.Elasticsearch/Configuration/SearcherOptions.cs):
+Umbraco search allows for multiple textual relevance options within a single field. You can change the default boost factors of the search provider:
 
 ```csharp
 builder.Services.Configure<SearcherOptions>(options =>
@@ -193,6 +218,10 @@ builder.Services.Configure<SearcherOptions>(options =>
 
 > [!IMPORTANT]
 > Increasing the maximum number of facet values per facet can degrade your overall search performance. Use with caution.
+
+## Extendability
+
+Generally, you should look to Umbraco search for extension points. There are however a few notable extension points in this search provider as well.
 
 ### Client connectivity
 
