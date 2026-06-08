@@ -164,29 +164,35 @@ public class AdditionalIndexesComposer : IComposer
 These are the configuration options for this search provider.
 
 
-### Disabling indexing for suggestion
+### Enabling indexing for suggestions
 
-The search provider supports suggestions by default. If you do not plan on using suggestions, you can disable suggestion indexing entirely. This frees up space in your indexes, and also speeds up the indexing a little:
+The search provider supports suggestions, but this feature is disabled by default. Enabling it increases the size of your indexes, and also slows down indexing a little:
 
 ```csharp
 builder.Services.Configure<IndexerOptions>(options =>
 {
-    // disable suggestion indexing entirely
-    options.UseSuggestions = false;
+    // enable suggestion indexing
+    options.UseSuggestions = true;
 });
 ```
 
-### Limit the number of suggestions in the index
+> [!NOTE]
+> You'll need to rebuild the indexes for this change to take full effect.
+
+### Changing the suggestions in the index
 
 Suggestions are generated from the most relevant text fields (all `TextsR1` values, e.g. the document names) by default. You can change this by explicitly defining which fields to use as the source for suggestions (all `Text*` values will be included from these fields):
 
 ```csharp
 builder.Services.Configure<IndexerOptions>(options =>
 {
-    // limit the source of suggestions to document name (core constant) and the title and description properties
+    // set the source of suggestions to the document name (core constant) and the title and description properties
     options.SuggestionFields = [Umbraco.Cms.Search.Core.Constants.FieldNames.Name, "title", "description"];
 });
 ```
+
+> [!NOTE]
+> You'll need to rebuild the indexes for this change to take full effect.
 
 ### Tweaking score boosting for textual relevance
 

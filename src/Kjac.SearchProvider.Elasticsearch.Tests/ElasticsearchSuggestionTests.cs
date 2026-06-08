@@ -1,4 +1,6 @@
+using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Search.Core.Models.Indexing;
 using Umbraco.Cms.Search.Core.Models.Searching;
@@ -15,6 +17,9 @@ public class ElasticsearchSuggestionTests : ElasticsearchTestBase
     private const string FieldTag = "tag";
 
     private readonly Guid _principalId = Guid.NewGuid();
+
+    protected override void PerformAdditionalConfiguration(ServiceCollection serviceCollection)
+        => serviceCollection.Configure<IndexerOptions>(options => options.UseSuggestions = true);
 
     protected override async Task PerformOneTimeSetUpAsync()
     {

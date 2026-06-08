@@ -15,7 +15,12 @@ public class ElasticsearchSuggestionFieldsTests : ElasticsearchTestBase
     private const string FieldBody = "body";
 
     protected override void PerformAdditionalConfiguration(ServiceCollection serviceCollection)
-        => serviceCollection.Configure<IndexerOptions>(options => options.SuggestionFields = [FieldTitle]);
+        => serviceCollection.Configure<IndexerOptions>(options =>
+            {
+                options.UseSuggestions = true;
+                options.SuggestionFields = [FieldTitle];
+            }
+        );
 
     protected override async Task PerformOneTimeSetUpAsync()
     {
