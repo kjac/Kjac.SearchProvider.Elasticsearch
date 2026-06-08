@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using System.Text;
 using System.Text.RegularExpressions;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Aggregations;
@@ -21,7 +20,7 @@ using Umbraco.Extensions;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
+internal sealed partial class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
     // aggregation key for the folded-in suggestion lookup; "__" prefix avoids clashing with facet
     // aggregation names (which are "{fieldName}_{facetType}")
@@ -290,9 +289,9 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
     private static IEnumerable<string>? ExtractSuggestions(AggregateDictionary? aggregations, int maxSuggestions)
     {
-        if (aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate? aggregate) is not true
+        if (aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate aggregate) is not true
             || aggregate is not FilterAggregate filterAggregate
-            || filterAggregate.Aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate? inner) is not true
+            || filterAggregate.Aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate inner) is not true
             || inner is not StringTermsAggregate termsAggregate)
         {
             return null;
@@ -309,22 +308,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
     }
 
     // escape Lucene regexp reserved characters so user input can't break or alter the include pattern
+    [GeneratedRegex(@"[.?+*|{}\[\]()""\\#@&<>~]")]
+    private static partial Regex LuceneRegexSpecialCharacters();
+
     private static string EscapeLuceneRegex(string value)
-    {
-        var builder = new StringBuilder(value.Length);
-        foreach (var c in value)
-        {
-            if (c is '.' or '?' or '+' or '*' or '|' or '{' or '}' or '[' or ']' or '(' or ')'
-                or '"' or '\\' or '#' or '@' or '&' or '<' or '>' or '~')
-            {
-                builder.Append('\\');
-            }
-
-            builder.Append(c);
-        }
-
-        return builder.ToString();
-    }
+        => LuceneRegexSpecialCharacters().Replace(value, @"\$0");
 
     private void AddAggregationDescriptor(
         FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,
