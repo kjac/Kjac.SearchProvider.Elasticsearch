@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.RegularExpressions;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Aggregations;
 using Elastic.Clients.Elasticsearch.Core.Search;
@@ -19,8 +20,12 @@ using Umbraco.Extensions;
 
 namespace Kjac.SearchProvider.Elasticsearch.Services;
 
-internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
+internal sealed partial class ElasticsearchSearcher : ElasticsearchServiceBase, IElasticsearchSearcher
 {
+    // aggregation key for the folded-in suggestion lookup; "__" prefix avoids clashing with facet
+    // aggregation names (which are "{fieldName}_{facetType}")
+    private const string SuggestionsAggregationName = "__suggestions";
+
     private readonly IElasticsearchClientFactory _clientFactory;
     private readonly ILogger<ElasticsearchSearcher> _logger;
     private readonly IIndexAliasResolver _indexAliasResolver;
@@ -38,7 +43,6 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
         _logger = logger;
     }
 
-    // TODO: implement suggestions
     public async Task<SearchResult> SearchAsync(
         string indexAlias,
         string? query = null,
@@ -88,6 +92,10 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                 )
             );
         }
+
+        // snapshot the culture + access filters so the suggestion query can reuse them without the
+        // full-text clause (which is replaced by a phrase-prefix match) or the facet aggregations
+        Action<QueryDescriptor<SearchResultDocument>>[] cultureAndAccessFilters = mustFilters.ToArray();
 
         // add full text search filter
         if (query.IsNullOrWhiteSpace() is false)
@@ -148,6 +156,37 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
             .Select(filter => FilterDescriptor(filter, segment))
             .ToArray();
 
+        // prepare suggestions; these are folded into the main search as a scoped filter aggregation
+        // so no second round-trip is needed when suggestions are requested
+        var includeSuggestions = maxSuggestions > 0 && query.IsNullOrWhiteSpace() is false;
+        var suggestPrefix = string.Empty;
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust = [];
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot = [];
+        if (includeSuggestions)
+        {
+            // normalize: lowercase + collapse internal whitespace so it lines up with the indexed shingles
+            suggestPrefix = Regex.Replace(query!.Trim().ToLowerInvariant(), @"\s+", " ");
+            if (suggestPrefix.Length is 0)
+            {
+                includeSuggestions = false;
+            }
+            else
+            {
+                // reuse every active filter the main query applies, minus the full-text clause (which is
+                // replaced by a phrase-prefix match on the suggest field)
+                suggestMust = cultureAndAccessFilters
+                    .Concat(regularFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+                    .Concat(facetFilters.Where(f => f.Negate is false).Select(f => FilterDescriptor(f, segment)))
+                    .Append(qd => qd.MatchPhrasePrefix(m => m.Field(IndexConstants.FieldNames.Suggest).Query(suggestPrefix)))
+                    .ToArray();
+                suggestMustNot = regularFilters
+                    .Where(f => f.Negate)
+                    .Select(f => FilterDescriptor(f, segment))
+                    .Concat(facetFilters.Where(f => f.Negate).Select(f => FilterDescriptor(f, segment)))
+                    .ToArray();
+            }
+        }
+
         SearchResponse<SearchResultDocument> result = await client.SearchAsync<SearchResultDocument>(
             sr => sr
                 .Indices(_indexAliasResolver.Resolve(indexAlias))
@@ -167,6 +206,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                         foreach (Facet facet in facetsAsArray)
                         {
                             AddAggregationDescriptor(a, facet, facetFilters, segment);
+                        }
+
+                        if (includeSuggestions)
+                        {
+                            AddSuggestionAggregationDescriptor(a, suggestMust, suggestMustNot, suggestPrefix, maxSuggestions);
                         }
                     }
                 )
@@ -194,8 +238,11 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
 
         Document[] keys = ExtractDocuments(result);
         IEnumerable<FacetResult> facetResult = ExtractFacetResult(facetsAsArray, result.Aggregations);
+        IEnumerable<string>? suggestions = includeSuggestions
+            ? ExtractSuggestions(result.Aggregations, maxSuggestions)
+            : null;
 
-        return new SearchResult(result.Total, keys, facetResult);
+        return new SearchResult(result.Total, keys, facetResult, suggestions);
 
         // full text filter uses boolean prefix (AND)
         Action<QueryDescriptor<SearchResultDocument>> MatchQuery(string fieldName, float boost = 1.0f) =>
@@ -207,6 +254,65 @@ internal sealed class ElasticsearchSearcher : ElasticsearchServiceBase, IElastic
                     .Boost(boost)
             );
     }
+
+    // adds a scoped filter aggregation that produces phrase / next-word autocomplete suggestions for
+    // the typed query. The filter mirrors the culture, access and filtering of the main search (the
+    // full-text clause is replaced by a phrase-prefix match); the nested terms aggregation surfaces
+    // the shingle tokens (word n-grams) that start with the typed text via a prefix include pattern.
+    private void AddSuggestionAggregationDescriptor(
+        FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMust,
+        Action<QueryDescriptor<SearchResultDocument>>[] suggestMustNot,
+        string prefix,
+        int maxSuggestions)
+    {
+        var includePattern = $"{EscapeLuceneRegex(prefix)}.*";
+        var shingleField = $"{IndexConstants.FieldNames.Suggest}.{IndexConstants.Analysis.ShingleSubField}";
+
+        aggs.Add(
+            SuggestionsAggregationName,
+            ad => ad
+                .Filter(qd => qd.Bool(bd => bd.Must(suggestMust).MustNot(suggestMustNot)))
+                .Aggregations(
+                    sa => sa.Add(
+                        SuggestionsAggregationName,
+                        sad => sad.Terms(
+                            td => td
+                                .Field(shingleField)
+                                .Include(new TermsInclude(includePattern))
+                                .Size(maxSuggestions * 3)
+                        )
+                    )
+                )
+        );
+    }
+
+    private static IEnumerable<string>? ExtractSuggestions(AggregateDictionary? aggregations, int maxSuggestions)
+    {
+        if (aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate aggregate) is not true
+            || aggregate is not FilterAggregate filterAggregate
+            || filterAggregate.Aggregations?.TryGetValue(SuggestionsAggregationName, out IAggregate inner) is not true
+            || inner is not StringTermsAggregate termsAggregate)
+        {
+            return null;
+        }
+
+        var suggestions = termsAggregate.Buckets
+            .Select(bucket => bucket.Key.TryGetString(out var key) ? key : null)
+            .WhereNotNull()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(maxSuggestions)
+            .ToArray();
+
+        return suggestions.Length > 0 ? suggestions : null;
+    }
+
+    // escape Lucene regexp reserved characters so user input can't break or alter the include pattern
+    [GeneratedRegex(@"[.?+*|{}\[\]()""\\#@&<>~]")]
+    private static partial Regex LuceneRegexSpecialCharacters();
+
+    private static string EscapeLuceneRegex(string value)
+        => LuceneRegexSpecialCharacters().Replace(value, @"\$0");
 
     private void AddAggregationDescriptor(
         FluentDictionaryOfStringAggregation<SearchResultDocument> aggs,

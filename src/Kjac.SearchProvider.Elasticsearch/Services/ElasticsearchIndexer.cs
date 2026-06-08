@@ -5,10 +5,13 @@ using Elastic.Clients.Elasticsearch.QueryDsl;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Search.Core.Models.Indexing;
+using Kjac.SearchProvider.Elasticsearch.Configuration;
 using Kjac.SearchProvider.Elasticsearch.Constants;
 using Kjac.SearchProvider.Elasticsearch.Extensions;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Search.Core.Extensions;
+using Umbraco.Extensions;
 using HealthStatus = Umbraco.Cms.Search.Core.Models.Indexing.HealthStatus;
 using IndexField = Umbraco.Cms.Search.Core.Models.Indexing.IndexField;
 
@@ -20,18 +23,21 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
     private readonly IElasticsearchIndexManager _indexManager;
     private readonly IIndexAliasResolver _indexAliasResolver;
     private readonly ILogger<ElasticsearchIndexer> _logger;
+    private readonly IndexerOptions _indexerOptions;
 
     public ElasticsearchIndexer(
         IServerRoleAccessor serverRoleAccessor,
         IElasticsearchIndexManager indexManager,
         IElasticsearchClientFactory clientFactory,
         IIndexAliasResolver indexAliasResolver,
+        IOptions<IndexerOptions> indexerOptions,
         ILogger<ElasticsearchIndexer> logger)
         : base(serverRoleAccessor)
     {
         _clientFactory = clientFactory;
         _indexManager = indexManager;
         _indexAliasResolver = indexAliasResolver;
+        _indexerOptions = indexerOptions.Value;
         _logger = logger;
     }
 
@@ -254,6 +260,25 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                     }
                 }
 
+                // build the suggestion source for phrase autocomplete (default segment only)
+                string? suggest = null;
+                if (_indexerOptions.UseSuggestions)
+                {
+                    string[] suggestSource = _indexerOptions.SuggestionFields.Length > 0
+                        ? defaultSegmentTextFields
+                            .Where(f => _indexerOptions.SuggestionFields.InvariantContains(f.FieldName))
+                            .SelectMany(f => (f.Value.Texts ?? [])
+                                .Concat(f.Value.TextsR1 ?? [])
+                                .Concat(f.Value.TextsR2 ?? [])
+                                .Concat(f.Value.TextsR3 ?? []))
+                            .ToArray()
+                        : allTextsR1;
+                    if (suggestSource.Length > 0)
+                    {
+                        suggest = string.Join(" ", suggestSource).ToLowerInvariant();
+                    }
+                }
+
                 return new IndexDocument
                 {
                     Id = $"{id:D}.{culture}",
@@ -261,12 +286,15 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
                     Key = id,
                     Culture = culture,
                     AccessKeys = accessKeys,
-                    Fields = fieldValues
+                    Fields = fieldValues,
+                    Suggest = suggest
                 };
             }
         );
 
         ElasticsearchClient client = _clientFactory.GetClient();
+
+        indexAlias = _indexAliasResolver.Resolve(indexAlias);
 
         // first delete all documents with this ID, to clean up any stray variations
         DeleteByQueryResponse deleteResponse = await client.DeleteByQueryAsync<IndexDocument>(
@@ -281,7 +309,7 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
         }
 
         // next insert all the variations in bulk
-        BulkResponse indexResponse = await client.IndexManyAsync(documents, index: _indexAliasResolver.Resolve(indexAlias));
+        BulkResponse indexResponse = await client.IndexManyAsync(documents, index: indexAlias);
         if (indexResponse.IsValidResponse is false)
         {
             LogFailedElasticResponse(_logger, indexAlias, "Could not perform add/update", indexResponse);
@@ -371,5 +399,9 @@ internal sealed class ElasticsearchIndexer : ElasticsearchIndexManagingServiceBa
 
         [JsonPropertyName(IndexConstants.FieldNames.Fields)]
         public required Dictionary<string, object[]> Fields { get; init; }
+
+        [JsonPropertyName(IndexConstants.FieldNames.Suggest)]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Suggest { get; init; }
     }
 }

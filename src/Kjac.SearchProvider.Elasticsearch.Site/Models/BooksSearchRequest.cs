@@ -17,4 +17,6 @@ public class BooksSearchRequest
     public int Skip { get; init; } = 0;
 
     public int Take { get; init; } = 12;
+
+    public bool IncludeSuggestions { get; init; } = false;
 }

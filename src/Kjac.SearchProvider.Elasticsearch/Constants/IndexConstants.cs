@@ -30,6 +30,17 @@ internal static class IndexConstants
         public const string AllTextsR3 = "__allTextsR3";
 
         public const string Fields = "fields";
+
+        public const string Suggest = "suggest";
+    }
+
+    public static class Analysis
+    {
+        public const string ShingleAnalyzerName = "suggest_shingle_analyzer";
+
+        public const string ShingleFilterName = "suggest_shingle_filter";
+
+        public const string ShingleSubField = "shingle";
     }
 
     public static class FieldTypePostfix

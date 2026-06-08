@@ -10,4 +10,6 @@ public class BookSearchResult
     public required FacetResult[] Facets { get; init; }
 
     public required IApiContent[] Documents { get; init; }
+
+    public IEnumerable<string>? Suggestions { get; set; }
 }

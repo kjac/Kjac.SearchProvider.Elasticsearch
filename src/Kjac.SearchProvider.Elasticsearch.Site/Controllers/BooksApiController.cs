@@ -58,7 +58,8 @@ public class BooksApiController : ControllerBase
             segment: null,
             accessContext: null,
             request.Skip,
-            request.Take
+            request.Take,
+            maxSuggestions: request.IncludeSuggestions ? 10 : 0
         );
 
         // build response models for the search results (the Delivery API output format)
@@ -83,7 +84,7 @@ public class BooksApiController : ControllerBase
             .ToArray();
 
         return Ok(
-            new BookSearchResult { Total = result.Total, Facets = result.Facets.ToArray(), Documents = documents }
+            new BookSearchResult { Total = result.Total, Facets = result.Facets.ToArray(), Documents = documents, Suggestions = result.Suggestions }
         );
     }
 
