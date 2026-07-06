@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="Elastic.Clients.Elasticsearch" Version="9.0.7"/>
-    <PackageReference Include="Umbraco.Cms.Search.Core" Version="1.0.0" />
+    <PackageReference Include="Umbraco.Cms.Search.Core" Version="[17.0.0, 18.0.0)" />
   </ItemGroup>
 
   <ItemGroup>
